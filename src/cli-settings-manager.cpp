@@ -534,6 +534,9 @@ namespace CliSettings
             return *arg.value;
         }
 
-        return lowerValue; // Default case is string;
+        // A string keeps its case: it may be a name that is written into a file, the array name of
+        // embedbin for one, and a lower-cased C++ identifier is a different identifier. A setting
+        // whose values are keywords compares them without case where it reads them.
+        return arg.value ? *arg.value : std::string();
     }
 }

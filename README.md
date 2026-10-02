@@ -22,6 +22,14 @@ about the players and not about the positions.
 needs: the analysis of qapla-engine-tester takes a pgn, searches every position and writes the
 values back into it.
 
+## Embedding a binary file: embedbin
+
+    embedbin --input=<file> --name=<array name> --header=<.h file> --source=<.cpp file>
+
+Writes the file as a packed `const uint32_t <name>[]` with its length in bytes in `<name>Size`: the
+header declares both, the source file defines them, four bytes to a word, little endian, the last word
+padded with zeros. The way to compile an opening book or a net into a program.
+
 ## Building
 
 Every tool is an executable of its own and can be built alone. CMake presets, Clang and Ninja on
@@ -31,6 +39,7 @@ every system:
     cmake --build --preset release                  every tool
     cmake --build --preset release-pgn2gam          pgn2gam only
     cmake --build --preset release-gam2pgn          gam2pgn only
+    cmake --build --preset release-embedbin         embedbin only
 
 The binaries land in `build/release/`. `debug` and `debug-<tool>` work the same way. Visual Studio
 2022 opens the folder and reads the presets directly.

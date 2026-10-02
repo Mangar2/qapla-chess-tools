@@ -32,6 +32,8 @@
     { "name": "release-pgn2gam", "displayName": "Release, pgn2gam only", "configurePreset": "release", "targets": [ "pgn2gam" ] },
     { "name": "release-gam2pgn", "displayName": "Release, gam2pgn only", "configurePreset": "release", "targets": [ "gam2pgn" ] },
     { "name": "debug-pgn2gam", "displayName": "Debug, pgn2gam only", "configurePreset": "debug", "targets": [ "pgn2gam" ] },
-    { "name": "debug-gam2pgn", "displayName": "Debug, gam2pgn only", "configurePreset": "debug", "targets": [ "gam2pgn" ] }
+    { "name": "debug-gam2pgn", "displayName": "Debug, gam2pgn only", "configurePreset": "debug", "targets": [ "gam2pgn" ] },
+    { "name": "release-embedbin", "displayName": "Release, embedbin only", "configurePreset": "release", "targets": [ "embedbin" ] },
+    { "name": "debug-embedbin", "displayName": "Debug, embedbin only", "configurePreset": "debug", "targets": [ "embedbin" ] }
   ]
 }

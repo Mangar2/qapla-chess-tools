@@ -4,7 +4,7 @@
 #
 #     cmake --preset release
 #     cmake --build --preset release                 every tool
-#     cmake --build --preset release-pgn2gam         one tool on its own
+#     cmake --build --preset release-pgn2gam         one tool on its own (pgn2gam, gam2pgn, embedbin)
 #
 # ================================================================================================
 # THE RULE OF THIS FILE - it has to stay this way
@@ -99,6 +99,13 @@ add_library(qapla-game-file OBJECT
 target_include_directories(qapla-game-file PUBLIC src)
 target_link_libraries(qapla-game-file PUBLIC qapla-platform)
 
+add_library(qapla-embed OBJECT
+    src/embed/file-loader.cpp
+    src/embed/cpp-array-writer.cpp
+)
+target_include_directories(qapla-embed PUBLIC src)
+target_link_libraries(qapla-embed PUBLIC qapla-platform)
+
 # ------------------------------------------------------------------------------------------------
 # The tools - one executable each, each a target of its own, so each can be built alone
 # ------------------------------------------------------------------------------------------------
@@ -110,3 +117,4 @@ endfunction()
 
 qapla_tool(pgn2gam qapla-cli qapla-game-file)
 qapla_tool(gam2pgn qapla-cli qapla-game-file)
+qapla_tool(embedbin qapla-cli qapla-embed)

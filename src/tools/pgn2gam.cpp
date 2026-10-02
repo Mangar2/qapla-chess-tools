@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
 		const std::vector<std::string> args(argv, argv + argc);
 		Manager::parseCommandLine(Manager::mergeWithSettingsFile(args));
 
-		const std::string wdl = Manager::get<std::string>("wdl");
+		const std::string wdl = to_lowercase(Manager::get<std::string>("wdl"));
 		if (wdl != "result" && wdl != "none") {
 			throw AppError::makeInvalidParameters("--wdl takes result or none, not \"" + wdl + "\"");
 		}
