@@ -379,7 +379,7 @@ namespace CliSettings
                 std::cout << key << " (required): ";
                 std::getline(std::cin, input);
                 values_[key] = parseValue(
-                    ParsedParameter{.hasPrefix = false, .name = key, .value = input}, def);
+                    ParsedParameter{.original = input, .hasPrefix = false, .name = key, .value = input}, def);
             }
             else if (!def.isRequired && def.defaultValue)
             {
