@@ -4,7 +4,7 @@
 #
 #     cmake --preset release
 #     cmake --build --preset release                 every tool
-#     cmake --build --preset release-pgn2gam         one tool on its own (pgn2gam, gam2pgn, embedbin)
+#     cmake --build --preset release-gamefile        one tool on its own (gamefile, embedbin)
 #
 # ================================================================================================
 # THE RULE OF THIS FILE - it has to stay this way
@@ -115,6 +115,5 @@ function(qapla_tool name)
     target_link_libraries(${name} PRIVATE qapla-platform ${ARGN})
 endfunction()
 
-qapla_tool(pgn2gam qapla-cli qapla-game-file)
-qapla_tool(gam2pgn qapla-cli qapla-game-file)
+qapla_tool(gamefile qapla-cli qapla-game-file)
 qapla_tool(embedbin qapla-cli qapla-embed)

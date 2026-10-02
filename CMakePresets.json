@@ -29,10 +29,8 @@
   "buildPresets": [
     { "name": "release", "displayName": "Release, every tool", "configurePreset": "release" },
     { "name": "debug", "displayName": "Debug, every tool", "configurePreset": "debug" },
-    { "name": "release-pgn2gam", "displayName": "Release, pgn2gam only", "configurePreset": "release", "targets": [ "pgn2gam" ] },
-    { "name": "release-gam2pgn", "displayName": "Release, gam2pgn only", "configurePreset": "release", "targets": [ "gam2pgn" ] },
-    { "name": "debug-pgn2gam", "displayName": "Debug, pgn2gam only", "configurePreset": "debug", "targets": [ "pgn2gam" ] },
-    { "name": "debug-gam2pgn", "displayName": "Debug, gam2pgn only", "configurePreset": "debug", "targets": [ "gam2pgn" ] },
+    { "name": "release-gamefile", "displayName": "Release, gamefile only", "configurePreset": "release", "targets": [ "gamefile" ] },
+    { "name": "debug-gamefile", "displayName": "Debug, gamefile only", "configurePreset": "debug", "targets": [ "gamefile" ] },
     { "name": "release-embedbin", "displayName": "Release, embedbin only", "configurePreset": "release", "targets": [ "embedbin" ] },
     { "name": "debug-embedbin", "displayName": "Debug, embedbin only", "configurePreset": "debug", "targets": [ "embedbin" ] }
   ]
