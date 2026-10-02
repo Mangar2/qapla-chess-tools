@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <unordered_map>
 
 #include "app-error.h"
@@ -134,6 +135,10 @@ namespace CliSettings
             {
                 typeMismatch("empty string required as default for type PathExists");
             }
+            break;
+        case ValueType::PathParentExists:
+            if (!std::holds_alternative<std::string>(value))
+                typeMismatch("string");
             break;
         }
     }
