@@ -233,7 +233,7 @@ namespace CliSettings
     {
         int index = 1;
 
-        while (index < args.size())
+        while (static_cast<size_t>(index) < args.size())
         {
             auto arg = parseParameter(args[index]);
 
@@ -332,7 +332,7 @@ namespace CliSettings
             throw AppError::makeInvalidParameters("\"" + groupArg.name + "\" may only be specified once");
         }
 
-        while (index < args.size())
+        while (static_cast<size_t>(index) < args.size())
         {
             auto arg = parseParameter(args[index]);
 

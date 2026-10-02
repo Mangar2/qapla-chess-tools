@@ -1,0 +1,37 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "description": "Clang and Ninja on every system; what differs between the systems is in the three sections of CMakeLists.txt, never here.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release (Clang + Ninja)",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug (Clang + Ninja)",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "release", "displayName": "Release, every tool", "configurePreset": "release" },
+    { "name": "debug", "displayName": "Debug, every tool", "configurePreset": "debug" },
+    { "name": "release-pgn2gam", "displayName": "Release, pgn2gam only", "configurePreset": "release", "targets": [ "pgn2gam" ] },
+    { "name": "release-gam2pgn", "displayName": "Release, gam2pgn only", "configurePreset": "release", "targets": [ "gam2pgn" ] },
+    { "name": "debug-pgn2gam", "displayName": "Debug, pgn2gam only", "configurePreset": "debug", "targets": [ "pgn2gam" ] },
+    { "name": "debug-gam2pgn", "displayName": "Debug, gam2pgn only", "configurePreset": "debug", "targets": [ "gam2pgn" ] }
+  ]
+}
