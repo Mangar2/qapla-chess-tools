@@ -20,6 +20,12 @@ whose values look like they are seen from white is refused. `wdl=none` stores no
 positions - right for games between players of different strength, where the result says something
 about the players and not about the positions.
 
+`--gam2binpack in=<game file> out=<binpack>` writes the valued positions as Stockfish training
+data for nnue-pytorch. A value of the game file is a win probability; it is written as the score
+whose training target in nnue-pytorch's loss is that probability, so a Stockfish net learns exactly
+the targets Qapla's data holds. The binpack code is copied from nnue-pytorch (GPL 3) into
+`src/third-party/nnue-pytorch`, `SOURCE-COMMIT` says from which commit.
+
 `--gam2pgn` writes the games back out in long notation without values. That is what a relabelling
 needs: the analysis of qapla-engine-tester takes a pgn, searches every position and writes the
 values back into it.

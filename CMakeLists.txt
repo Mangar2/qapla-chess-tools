@@ -95,8 +95,12 @@ add_library(qapla-game-file OBJECT
     src/game-file/game-file.cpp
     src/game-file/pgn-to-game-file.cpp
     src/game-file/game-file-to-pgn.cpp
+    src/game-file/game-file-to-binpack.cpp
 )
 target_include_directories(qapla-game-file PUBLIC src)
+# The training data format of nnue-pytorch, copied from it (GPL 3, see SOURCE-COMMIT there). A
+# system include, so that its own warnings do not bury ours.
+target_include_directories(qapla-game-file SYSTEM PUBLIC src/third-party)
 target_link_libraries(qapla-game-file PUBLIC qapla-platform)
 
 add_library(qapla-embed OBJECT

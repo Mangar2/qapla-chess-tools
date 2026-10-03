@@ -22,8 +22,9 @@
  *
  *   gamefile --pgn2gam in=<pgn> out=<game file> [wdl=result|none] [maxgames=N]
  *   gamefile --gam2pgn in=<game file> out=<pgn> [maxgames=N]
+ *   gamefile --gam2binpack in=<game file> out=<binpack> [maxgames=N]
  *
- * Both may be given in one call; pgn2gam runs first. See GameFile::PgnToGameFile and
+ * Several may be given in one call; they run in this order. See GameFile::PgnToGameFile and
  * GameFile::GameFileToPgn for what is read, written and refused.
  * Exit code 0 on success, 1 when pgn2gam refused its file, 2 on an error.
  */
@@ -35,6 +36,7 @@
 
 #include "app-error.h"
 #include "cli-settings-manager.h"
+#include "game-file/game-file-to-binpack.h"
 #include "game-file/game-file-to-pgn.h"
 #include "game-file/pgn-to-game-file.h"
 #include "string-helper.h"
@@ -62,6 +64,15 @@ namespace {
 				{ "out", { "The pgn to write", true, std::nullopt, ValueType::PathParentExists } },
 				{ "maxgames", { "Stops after this many games, 0 for all", false, 0, ValueType::Int } },
 			});
+		Manager::registerGroup("gam2binpack",
+			"Writes the valued positions of a game file as Stockfish training data (.binpack) for "
+			"nnue-pytorch, the values turned into the scores whose training target is the stored "
+			"probability.",
+			true, {
+				{ "in", { "The game file to read", true, std::nullopt, ValueType::PathExists } },
+				{ "out", { "The .binpack to write", true, std::nullopt, ValueType::PathParentExists } },
+				{ "maxgames", { "Stops after this many games, 0 for all", false, 0, ValueType::Int } },
+			});
 	}
 
 	uint64_t maxGamesOf(int value) { return uint64_t(value < 0 ? 0 : value); }
@@ -84,6 +95,11 @@ namespace {
 		if (const auto group = Manager::getGroupInstance("gam2pgn")) {
 			any = true;
 			const GameFile::GameFileToPgn converter{ .maxGames = maxGamesOf(group->get<int>("maxgames")) };
+			converter.convert(group->get<std::string>("in"), group->get<std::string>("out"));
+		}
+		if (const auto group = Manager::getGroupInstance("gam2binpack")) {
+			any = true;
+			const GameFile::GameFileToBinpack converter{ .maxGames = maxGamesOf(group->get<int>("maxgames")) };
 			converter.convert(group->get<std::string>("in"), group->get<std::string>("out"));
 		}
 		if (!any) {
