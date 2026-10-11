@@ -21,6 +21,8 @@
 #include <cstdint>
 #include <string>
 
+#include "game-file.h"
+
 namespace GameFile {
 
 	/**
@@ -37,12 +39,18 @@ namespace GameFile {
 	 * The perspective of the values is checked, not assumed: seen from the side to move, consecutive
 	 * values of a game have opposite signs almost always, seen from white they keep it. A file that
 	 * does not clearly look like the side to move is refused and nothing is written.
+	 *
+	 * Version 2 is the file the engine's training reads, to the byte what convert.py writes. Version 3
+	 * holds the nine bit move and a payload per ply; the value goes into its first two bytes, so a
+	 * payload below two stores no values.
 	 */
 	struct PgnToGameFile {
 		/** Whether the result of a game goes into the file, or RESULT_NONE for every position. */
 		bool useResult = true;
 		/** Stops after this many games with moves; 0 for all of them. */
 		uint64_t maxGames = 0;
+		/** The version and payload of the file written. */
+		Format format{};
 
 		/**
 		 * Converts and prints what it counted. Returns false if the file was refused.

@@ -1,0 +1,3 @@
+Copied from qapla-engine-tester (https://github.com/Mangar2/qapla-engine-tester), src/,
+commit 75dbff1f9c0832407195c206cb69deffda02b2ab, unchanged: the pgn and epd readers of src/opening and every file they include,
+with the directory layout of the tester so that the includes stay as they are.

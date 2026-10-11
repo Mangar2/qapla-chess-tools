@@ -91,17 +91,54 @@ add_library(qapla-cli OBJECT
 target_include_directories(qapla-cli PUBLIC src)
 target_link_libraries(qapla-cli PUBLIC qapla-platform)
 
+add_library(qapla-tester OBJECT
+    src/engine-tester/base-elements/base-logger.cpp
+    src/engine-tester/base-elements/file-helper.cpp
+    src/engine-tester/base-elements/ini-file.cpp
+    src/engine-tester/base-elements/logger.cpp
+    src/engine-tester/base-elements/table-format.cpp
+    src/engine-tester/base-elements/time-control.cpp
+    src/engine-tester/chess-game/game-record.cpp
+    src/engine-tester/chess-game/move-record.cpp
+    src/engine-tester/game-manager/game-state.cpp
+    src/engine-tester/json/json_pretty_print.cpp
+    src/engine-tester/json/json_value.cpp
+    src/engine-tester/json/json_value_array.cpp
+    src/engine-tester/json/json_value_object.cpp
+    src/engine-tester/opening/epd-reader.cpp
+    src/engine-tester/opening/fen-parser.cpp
+    src/engine-tester/opening/pgn-io.cpp
+    src/engine-tester/opening/pgn-tokenizer.cpp
+    src/engine-tester/qapla-engine/bitboardmasks.cpp
+    src/engine-tester/qapla-engine/board.cpp
+    src/engine-tester/qapla-engine/hashconstants.cpp
+    src/engine-tester/qapla-engine/magics.cpp
+    src/engine-tester/qapla-engine/movegenerator.cpp
+    src/engine-tester/qapla-engine/piecesignature.cpp
+    src/engine-tester/qapla-engine/pst.cpp
+)
+# The pgn and epd readers of qapla-engine-tester, copied with its directory layout, see
+# src/engine-tester/SOURCE-COMMIT. Its own includes start from its src directory.
+target_include_directories(qapla-tester PUBLIC src/engine-tester)
+target_compile_definitions(qapla-tester PUBLIC _REENTRANT)
+target_link_libraries(qapla-tester PUBLIC qapla-platform)
+
 add_library(qapla-game-file OBJECT
     src/game-file/game-file.cpp
+    src/game-file/pgn-reader.cpp
     src/game-file/pgn-to-game-file.cpp
     src/game-file/game-file-to-pgn.cpp
     src/game-file/game-file-to-binpack.cpp
+    src/game-file/book-file.cpp
+    src/game-file/opening-reader.cpp
+    src/game-file/pgn-to-book.cpp
+    src/game-file/book-to-pgn.cpp
 )
 target_include_directories(qapla-game-file PUBLIC src)
 # The training data format of nnue-pytorch, copied from it (GPL 3, see SOURCE-COMMIT there). A
 # system include, so that its own warnings do not bury ours.
 target_include_directories(qapla-game-file SYSTEM PUBLIC src/third-party)
-target_link_libraries(qapla-game-file PUBLIC qapla-platform)
+target_link_libraries(qapla-game-file PUBLIC qapla-platform qapla-tester)
 
 add_library(qapla-embed OBJECT
     src/embed/file-loader.cpp
@@ -119,5 +156,5 @@ function(qapla_tool name)
     target_link_libraries(${name} PRIVATE qapla-platform ${ARGN})
 endfunction()
 
-qapla_tool(gamefile qapla-cli qapla-game-file)
+qapla_tool(gamefile qapla-cli qapla-game-file qapla-tester)
 qapla_tool(embedbin qapla-cli qapla-embed)

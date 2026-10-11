@@ -32,10 +32,17 @@ namespace GameFile {
 	 * the moves of the book line included, and the result in every record. Only the notation is
 	 * rebuilt: long algebraic, which is what the way back reads without a move generator. The values
 	 * are not written; they are what a relabelling replaces.
+	 *
+	 * With values, every value goes into the comment of its move as the tester writes it, in pawns
+	 * from the side to move - the way from one version of the game file to the other, through a pgn.
+	 * The value is the integer in the unit of the engine whose code is the stored one; where no
+	 * integer has that code, near a probability of one half, it is the nearest, one code away.
 	 */
 	struct GameFileToPgn {
 		/** Stops after this many games; 0 for all of them. */
 		uint64_t maxGames = 0;
+		/** Writes the values into the comments. */
+		bool withValues = false;
 
 		/**
 		 * Converts and prints how many games it wrote. Returns the number of games.

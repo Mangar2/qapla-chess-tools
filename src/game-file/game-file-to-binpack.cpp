@@ -122,7 +122,7 @@ namespace GameFile {
 				chess::Position position = chess::Position::startPosition();
 				for (size_t ply = 0; ply < game.size(); ++ply) {
 					const Record& record = game[ply];
-					const Move move = unpackMove(record.move, board);
+					const Move move = unpackMove(record.move, board, reader.format().version);
 					const chess::Move played = chessMove(move, position);
 					if (!position.isMoveLegal(played)) {
 						throw std::runtime_error("game " + std::to_string(games + 1) + " ply "

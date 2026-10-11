@@ -21,12 +21,28 @@
 /**
  * The packed game file of the Qapla engine (QAPLAGM2), the file its nnue training reads.
  *
- * This is the counterpart of src/trainer/format.py in the engine's repository, which in turn
- * follows src/book/packed-move.h and src/nnue-data/game-file.h there. Everything here has to agree
- * with those, bit for bit:
+ * A file begins with the magic "QAPLAGM2" and a version, four bytes little endian, and then holds
+ * game after game: a length byte, 1 to 255, and one record per ply. A length of zero, the end of the
+ * file or a game cut off ends it. Two versions differ in the record:
  *
- * - the eleven bit move code and how it is unpacked without a move generator,
- * - the three byte record of a played game: move, result, value code,
+ * Version 2, the one the engine's training reads, three bytes per ply:
+ *   (msb) VVVV VVVV VVVR RMMM MMMM MMMM (lsb), little endian
+ *   M = the eleven bit move of src/book/packed-move.h, R = result, V = value code
+ *
+ * Version 3, the nine bit move of src/book9/packed-move.h and room for data of the caller's own.
+ * The header has four more bytes, little endian: the payload, the number of bytes every ply carries
+ * behind its move. A ply is two bytes, little endian, and then its payload:
+ *   (msb) 0000 0RRM MMMM MMMM (lsb)
+ *   M = the nine bit move, R = result, 0 = reserved, written as zero
+ * With a payload of two bytes or more, the first two hold the value code, little endian; the bytes
+ * behind them are free. With less there are no values in the file.
+ *
+ * This is the counterpart of src/trainer/format.py in the engine's repository, which in turn
+ * follows src/book/packed-move.h, src/book9/packed-move.h and src/nnue-data/game-file.h there.
+ * Everything here has to agree with those, bit for bit:
+ *
+ * - the eleven and the nine bit move code and how they are unpacked without a move generator,
+ * - the records of a played game: move, result, value code,
  * - the piece encoding of Qapla.
  *
  * The board only replays. It does not generate or check moves, and it does not have to: every move
@@ -55,9 +71,25 @@ namespace GameFile {
 	/** The longest game a file holds: its length is one byte. */
 	constexpr size_t MAX_PLIES = 255;
 
+	/** The file versions: the eleven bit move the engine reads, and the nine bit move. */
+	constexpr uint32_t VERSION_MOVE11 = 2;
+	constexpr uint32_t VERSION_MOVE9 = 3;
+	/** The most bytes a ply of version 3 carries behind its move. */
+	constexpr uint32_t MAX_PAYLOAD = 255;
+	/** The payload a value needs: the value code in two bytes. */
+	constexpr uint32_t VALUE_PAYLOAD = 2;
+
+	/** What the header of a file says. */
+	struct Format {
+		uint32_t version = VERSION_MOVE11;
+		/** Bytes behind the move of every ply; always 0 for version 2, which has no payload. */
+		uint32_t payload = 0;
+	};
+
 	/**
-	 * One ply of a game. The value is a win probability as a code, NO_GAME_VALUE for a move without
-	 * one; value and result are seen from the side to move before the move.
+	 * One ply of a game. The move is the packed move of the version of the file. The value is a win
+	 * probability as a code, NO_GAME_VALUE for a move without one; value and result are seen from the
+	 * side to move before the move.
 	 */
 	struct Record {
 		uint32_t move;
@@ -77,6 +109,17 @@ namespace GameFile {
 
 	/** The code of a value in the unit of the engine, where a pawn is 80 to 95. */
 	uint32_t codeOfValue(int value);
+
+	/**
+	 * The value in the unit of the engine that codeOfValue turns back into the code: the inverse of
+	 * the sigmoid, then the integer nearby whose code is this one, if there is one - near a
+	 * probability of one half not every code has one, then it is the nearest. The two ends, a
+	 * probability of 0 or 1, are the values a mate is read as.
+	 */
+	int valueOfCode(uint32_t code);
+
+	/** Appends " {+0.31}": the value of a code as the tester writes it, in pawns. */
+	void appendValueComment(std::string& text, uint32_t code);
 
 	struct Move {
 		int from;
@@ -107,7 +150,29 @@ namespace GameFile {
 	 */
 	Move unpackMove(uint32_t packed, const Board& board);
 
-	/** Packs a record into its three bytes, as an integer. */
+	/**
+	 * The nine bit code of a move in the position it is played from, or nothing if the format cannot
+	 * express it: no piece of the side to move on the departure square, a destination the piece has
+	 * no code for, or more than 16 pieces of a side. A castling move is the king moving to the c or
+	 * the g file, as Qapla writes it. The move is not checked for legality.
+	 */
+	std::optional<uint32_t> packMove9(const Move& move, const Board& board);
+
+	/**
+	 * from, to and promotion of a nine bit move in the position it was packed in: the moving piece is
+	 * the n-th piece of the side to move counted from a1, the code says where it goes. Castling comes
+	 * back as the king moving to the c or the g file.
+	 * @throws std::runtime_error if the code does not fit the position - the file is broken.
+	 */
+	Move unpackMove9(uint32_t packed, const Board& board);
+
+	/** The code of a move in the version of a file; packMove or packMove9. */
+	std::optional<uint32_t> packMove(const Move& move, const Board& board, uint32_t version);
+
+	/** A packed move of the version of a file; unpackMove or unpackMove9. */
+	Move unpackMove(uint32_t packed, const Board& board, uint32_t version);
+
+	/** Packs a record of version 2 into its three bytes, as an integer. */
 	constexpr uint32_t packRecord(const Record& record) {
 		return (record.move & 0x7FF) | ((record.result & 0x3) << 11)
 			| ((record.value & MAX_VALUE_CODE) << 13);
@@ -124,7 +189,7 @@ namespace GameFile {
 	 */
 	class Reader {
 	public:
-		/** @throws std::runtime_error if the file cannot be opened or is not of version 2. */
+		/** @throws std::runtime_error if the file cannot be opened or is not of version 2 or 3. */
 		explicit Reader(const std::string& path);
 		~Reader();
 		Reader(const Reader&) = delete;
@@ -133,15 +198,23 @@ namespace GameFile {
 		/** The next game, or false at the end. */
 		bool next(Game& game);
 
+		const Format& format() const { return format_; }
+
 	private:
 		std::FILE* file_;
+		Format format_;
+		std::vector<uint8_t> data_;
 	};
 
 	/** Writes a game file; games that are empty or longer than MAX_PLIES are left out. */
 	class Writer {
 	public:
-		/** @throws std::runtime_error if the file cannot be created. */
-		explicit Writer(const std::string& path);
+		/**
+		 * The payload of the format is only for version 3; behind the value, if it has room for one,
+		 * it is written as zeros.
+		 * @throws std::runtime_error if the file cannot be created or the format is not one.
+		 */
+		explicit Writer(const std::string& path, const Format& format = {});
 		~Writer();
 		Writer(const Writer&) = delete;
 		Writer& operator=(const Writer&) = delete;
@@ -152,6 +225,8 @@ namespace GameFile {
 
 	private:
 		std::FILE* file_;
+		Format format_;
+		std::vector<uint8_t> data_;
 		bool failed_ = false;
 	};
 }

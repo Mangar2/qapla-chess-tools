@@ -63,7 +63,7 @@ namespace GameFile {
 			Board board;
 			moves.clear();
 			for (const Record& record : game) {
-				const Move move = unpackMove(record.move, board);
+				const Move move = unpackMove(record.move, board, reader.format().version);
 				std::string name;
 				appendSquare(name, move.from);
 				appendSquare(name, move.to);
@@ -71,6 +71,7 @@ namespace GameFile {
 					// A piece code halved is 2 for a knight, 3 bishop, 4 rook, 5 queen.
 					name += "nbrq"[(move.promotion >> 1) - 2];
 				}
+				if (withValues && record.value != NO_GAME_VALUE) appendValueComment(name, record.value);
 				moves.push_back(name);
 				board.apply(move);
 			}
