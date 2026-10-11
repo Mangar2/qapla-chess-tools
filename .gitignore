@@ -363,3 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 # CMake build directories
 build/
+# Test data, books and game files made with the tools - not part of the repository
+test/
