@@ -16,7 +16,11 @@ that file and a pgn in both directions, with exactly the output of the python sc
 Both may be given in one call; `--pgn2gam` runs first.
 
 `--pgn2gam` reads a pgn as qapla-engine-tester writes it with `notation=lan` and `eval=true`: long
-algebraic notation, the value of each move in its comment, in pawns, from the side to move. A file
+algebraic notation, the value of each move in its comment, in pawns, from the side to move. The
+result of a game is its `Result` tag, and without one - a pgn written with `min=true` has none - the
+token that ends its moves (`1-0`, `0-1`, `1/2-1/2`); a tag and a token that disagree are counted, the
+tag is taken. With `wdl=result` the output gives the results of the written games and warns about
+the ones that have none. A file
 whose values look like they are seen from white is refused. `wdl=none` stores no result with the
 positions - right for games between players of different strength, where the result says something
 about the players and not about the positions.

@@ -53,6 +53,13 @@ namespace GameFile {
 	std::vector<PgnMove> parseMovetext(const std::string& text, uint64_t& badComments);
 
 	/**
+	 * The result token that ends the move text of a game - 1-0, 0-1, 1/2-1/2 or * - or an empty
+	 * string if it has none. Comments are passed over: "{M1/5, White mates} 1-0" ends in 1-0. A pgn
+	 * written with few tags, as qapla-engine-tester writes it with min=true, has its result only there.
+	 */
+	std::string finalResultToken(const std::string& text);
+
+	/**
 	 * Calls the handler with the tags and the move text of every game, in the order of the file,
 	 * until it returns false. The move text is the lines of the game joined by a space.
 	 * @throws std::runtime_error if the file cannot be read.

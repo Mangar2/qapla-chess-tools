@@ -123,6 +123,30 @@ namespace GameFile {
 		return moves;
 	}
 
+	std::string finalResultToken(const std::string& text) {
+		std::string last;
+		size_t index = 0;
+		const size_t length = text.size();
+		while (index < length) {
+			const char character = text[index];
+			if (isPythonSpace(character)) {
+				++index;
+				continue;
+			}
+			if (character == '{') {
+				const size_t end = text.find('}', index);
+				if (end == std::string::npos) break;
+				index = end + 1;
+				continue;
+			}
+			size_t end = index;
+			while (end < length && !isPythonSpace(text[end]) && text[end] != '{') ++end;
+			last = text.substr(index, end - index);
+			index = end;
+		}
+		return isResultToken(last) ? last : std::string();
+	}
+
 	void readPgnGames(const std::string& path,
 		const std::function<bool(const PgnTags& tags, const std::string& movetext)>& handler) {
 		PgnTags tags;

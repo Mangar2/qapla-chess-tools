@@ -47,6 +47,12 @@ namespace GameFile {
 			uint64_t badComments = 0;
 			uint64_t sameSign = 0;
 			uint64_t oppositeSign = 0;
+			/** The results of the written games, and the games whose tag and final token disagree. */
+			uint64_t whiteWins = 0;
+			uint64_t blackWins = 0;
+			uint64_t draws = 0;
+			uint64_t noResult = 0;
+			uint64_t resultConflicts = 0;
 		};
 
 		enum class Outcome { White, Black, Draw, Unknown };
@@ -101,7 +107,7 @@ namespace GameFile {
 			}
 		}
 
-		std::optional<Game> gameRecords(const PgnTags& tags,
+		std::optional<Game> gameRecords(const PgnTags& tags, const std::string& finalToken,
 			std::vector<PgnMove> moves, bool useResult, uint32_t version, Counters& counters) {
 			if (tags.count("FEN") != 0) {
 				// The file starts every game at the initial position; one that starts elsewhere cannot
@@ -113,8 +119,13 @@ namespace GameFile {
 				moves.resize(MAX_PLIES);
 				++counters.truncated;
 			}
+			// The Result tag decides, as in convert.py; without one, the token that ends the moves.
 			const auto result = tags.find("Result");
-			const Outcome outcome = outcomeOf(result == tags.end() ? "*" : result->second);
+			if (result != tags.end() && !finalToken.empty() && result->second != finalToken) {
+				++counters.resultConflicts;
+			}
+			const Outcome outcome = outcomeOf(result != tags.end() ? result->second
+				: (finalToken.empty() ? "*" : finalToken));
 			Game records;
 			std::optional<int> previous;
 			// The nine bit move depends on the position, the game is followed on a board.
@@ -159,6 +170,12 @@ namespace GameFile {
 				++counters.skippedNoValue;
 				return std::nullopt;
 			}
+			switch (outcome) {
+			case Outcome::White: ++counters.whiteWins; break;
+			case Outcome::Black: ++counters.blackWins; break;
+			case Outcome::Draw: ++counters.draws; break;
+			case Outcome::Unknown: ++counters.noResult; break;
+			}
 			return records;
 		}
 
@@ -186,7 +203,7 @@ namespace GameFile {
 			if (moves.empty()) return true;
 			++counters.games;
 			if (book && tags.count("FEN") == 0) fillFromBook(*book, moves, bookCounters);
-			const std::optional<Game> records = gameRecords(tags, std::move(moves), useResult,
+			const std::optional<Game> records = gameRecords(tags, finalResultToken(movetext), std::move(moves), useResult,
 				format.version, counters);
 			if (records) {
 				writer.write(*records);
@@ -216,6 +233,21 @@ namespace GameFile {
 			(unsigned long long)counters.skippedFen, (unsigned long long)counters.skippedNoValue,
 			(unsigned long long)counters.skippedUnpackable, (unsigned long long)counters.truncated,
 			(unsigned long long)counters.badComments);
+		if (useResult) {
+			std::printf("results: 1-0 %llu, 0-1 %llu, 1/2-1/2 %llu, none %llu; tag and final token "
+				"disagree %llu\n", (unsigned long long)counters.whiteWins, (unsigned long long)counters.blackWins,
+				(unsigned long long)counters.draws, (unsigned long long)counters.noResult,
+				(unsigned long long)counters.resultConflicts);
+			if (counters.noResult != 0) {
+				std::printf("WARNING: %llu of the %llu written games have no result - no Result tag, and their "
+					"moves end in * or in no result at all; their positions carry none\n",
+					(unsigned long long)counters.noResult, (unsigned long long)counters.written);
+			}
+			if (counters.resultConflicts != 0) {
+				std::printf("WARNING: %llu games have a Result tag that disagrees with the token ending "
+					"their moves; the tag was taken\n", (unsigned long long)counters.resultConflicts);
+			}
+		}
 		if (book) {
 			std::printf("from the book: %llu plies filled, %llu plies of the written games still without "
 				"a value, %llu games not beginning with a book move\n",
