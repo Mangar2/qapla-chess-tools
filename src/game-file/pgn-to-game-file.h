@@ -51,6 +51,12 @@ namespace GameFile {
 		uint64_t maxGames = 0;
 		/** The version and payload of the file written. */
 		Format format{};
+		/**
+		 * A book evaluated by qapla-engine-tester --bookeval, or empty. A ply without a value in its
+		 * comment - a move of the opening - takes the score the book holds for the position it is
+		 * played from, as long as the game is in the book; what is still without a value is counted.
+		 */
+		std::string bookPath;
 
 		/**
 		 * Converts and prints what it counted. Returns false if the file was refused.

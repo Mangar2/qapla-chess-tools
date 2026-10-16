@@ -20,12 +20,32 @@
 #include "book-to-pgn.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <stdexcept>
 #include <vector>
 
 #include "book-file.h"
 
 namespace GameFile {
+
+	namespace {
+
+		/** Appends " {+0.25}" or " {M5}": a search score as qapla-engine-tester writes it. */
+		void appendScoreComment(std::string& text, int16_t score) {
+			char buffer[32];
+			if (score > MAX_SCORE_CENTIPAWNS) {
+				std::snprintf(buffer, sizeof(buffer), " {M%d}", SCORE_MATE - score);
+			}
+			else if (score < -MAX_SCORE_CENTIPAWNS) {
+				std::snprintf(buffer, sizeof(buffer), " {-M%d}", SCORE_MATE + score);
+			}
+			else {
+				std::snprintf(buffer, sizeof(buffer), " {%s%d.%02d}", score < 0 ? "-" : "+",
+					std::abs(score) / 100, std::abs(score) % 100);
+			}
+			text += buffer;
+		}
+	}
 
 	uint64_t BookToPgn::convert(const std::string& bookPath, const std::string& pgnPath) const {
 		Book book;
@@ -68,6 +88,7 @@ namespace GameFile {
 			// A piece code halved is 2 for a knight, 3 bishop, 4 rook, 5 queen.
 			if (move.promotion != NO_PIECE) frame.move += "nbrq"[(move.promotion >> 1) - 2];
 			if (withValues && entry.value != NO_GAME_VALUE) appendValueComment(frame.move, entry.value);
+			else if (withValues && entry.score != NO_SCORE) appendScoreComment(frame.move, entry.score);
 			frame.board.apply(move);
 			line.push_back(std::move(frame));
 		};

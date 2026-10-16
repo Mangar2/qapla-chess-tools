@@ -22,7 +22,7 @@
  * between a pgn and a 9 bit book.
  *
  *   gamefile --pgn2gam in=<pgn> out=<game file> [wdl=result|none] [maxgames=N] [version=2|3]
- *            [payload=N]
+ *            [payload=N] [book=<evaluated book>]
  *   gamefile --gam2pgn in=<game file> out=<pgn> [maxgames=N] [values=true|false]
  *   gamefile --gam2binpack in=<game file> out=<binpack> [maxgames=N]
  *   gamefile --pgn2book in=<pgn or raw> out=<book> [payload=N] [maxgames=N] [maxply=N]
@@ -36,6 +36,7 @@
  */
 
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -68,6 +69,9 @@ namespace {
 					"bit move of book9 and a payload per ply", false, 2, ValueType::Int } },
 				{ "payload", { "Version 3 only: bytes per ply behind the move, 0 to 255; the first two "
 					"hold the value, with less there are no values", false, 2, ValueType::Int } },
+				{ "book", { "A book evaluated by qapla-engine-tester --bookeval: the plies without a value "
+					"take the score of the position they are played from, as long as the game is in the "
+					"book", false, std::string(""), ValueType::String } },
 			});
 		Manager::registerGroup("gam2pgn",
 			"Writes the games of a packed game file back out as a pgn in long notation, by default "
@@ -135,8 +139,12 @@ namespace {
 			}
 			const GameFile::Format format{ .version = uint32_t(version),
 				.payload = version == int(GameFile::VERSION_MOVE9) ? uint32_t(payload) : 0 };
+			const std::string book = group->get<std::string>("book");
+			if (!book.empty() && !std::filesystem::exists(book)) {
+				throw AppError::makeInvalidParameters("book " + book + " does not exist");
+			}
 			const GameFile::PgnToGameFile converter{ .useResult = wdl == "result",
-				.maxGames = maxGamesOf(group->get<int>("maxgames")), .format = format };
+				.maxGames = maxGamesOf(group->get<int>("maxgames")), .format = format, .bookPath = book };
 			if (!converter.convert(group->get<std::string>("in"), group->get<std::string>("out"))) {
 				return 1;
 			}

@@ -38,6 +38,11 @@
  * the value code of the move, as in a game file, and the payload id says so; the bytes behind it
  * are free and written as zeros. Without a payload the file is byte for byte the book an engine
  * book of EmptyPayload writes.
+ *
+ * A book evaluated by qapla-engine-tester --bookeval has the payload id SCORE_PAYLOAD_ID instead:
+ * the first two bytes of a node hold, signed, the search score of the position its move is played
+ * from, seen from the side to move there - centipawns from -30000 to 30000, 32000 - n for a mate in
+ * n moves, -32000 + n for being mated in n, -32768 for no score.
  */
 
 #include <cstdint>
@@ -51,6 +56,21 @@ namespace GameFile {
 	constexpr const char* BOOK9_FILE_VERSION = "9";
 	/** The payload id of a book whose payload starts with the value code. */
 	constexpr const char* VALUE_PAYLOAD_ID = "qapla-value-code-v1";
+	/** The payload id of a book evaluated by qapla-engine-tester --bookeval. */
+	constexpr const char* SCORE_PAYLOAD_ID = "qapla-search-score-v1";
+	/** The search score of a book node, see SCORE_PAYLOAD_ID. */
+	constexpr int16_t NO_SCORE = INT16_MIN;
+	constexpr int32_t MAX_SCORE_CENTIPAWNS = 30000;
+	constexpr int32_t SCORE_MATE = 32000;
+	/** The value pgn2gam reads a mate as, in the unit of the engine. */
+	constexpr int MATE_VALUE = 30000;
+
+	/** The value of a search score in the unit of the engine, as pgn2gam reads it from a comment. */
+	constexpr int valueOfScore(int16_t score) {
+		if (score > MAX_SCORE_CENTIPAWNS) return MATE_VALUE;
+		if (score < -MAX_SCORE_CENTIPAWNS) return -MATE_VALUE;
+		return score;
+	}
 	constexpr uint32_t PRIORITY_DEFAULT = 16;
 	constexpr uint32_t PRIORITY_MAX = 31;
 
@@ -71,20 +91,26 @@ namespace GameFile {
 		static constexpr NodeIndex ROOT = 0;
 		static constexpr NodeIndex NO_NODE = ~NodeIndex(0);
 
+		/** Kept small: a book of the training data has many millions of nodes. */
 		struct Node {
-			uint32_t move = 0;
-			uint32_t priority = PRIORITY_DEFAULT;
-			/** The value code of the move, NO_GAME_VALUE for none. */
-			uint32_t value = NO_GAME_VALUE;
 			NodeIndex firstChild = NO_NODE;
 			NodeIndex lastChild = NO_NODE;
 			NodeIndex nextSibling = NO_NODE;
+			uint16_t move = 0;
+			/** The value code of the move, NO_GAME_VALUE for none. */
+			uint16_t value = NO_GAME_VALUE;
+			/** The search score of the position the move is played from, NO_SCORE for none. */
+			int16_t score = NO_SCORE;
+			uint8_t priority = PRIORITY_DEFAULT;
 		};
 
 		Book();
 
 		/** The child of a node with this nine bit move, added behind its siblings if it is new. */
 		NodeIndex addMove(NodeIndex parent, uint32_t move);
+
+		/** The child of a node with this nine bit move, NO_NODE if the book has none. */
+		NodeIndex findMove(NodeIndex parent, uint32_t move) const;
 
 		const Node& node(NodeIndex index) const { return nodes_[index]; }
 		Node& node(NodeIndex index) { return nodes_[index]; }

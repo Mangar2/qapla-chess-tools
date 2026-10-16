@@ -10,6 +10,7 @@ that file and a pgn in both directions, with exactly the output of the python sc
 (`src/trainer/convert.py` and `src/trainer/export-pgn.py`), byte for byte, only much faster.
 
     gamefile --pgn2gam in=<pgn> out=<game file> [wdl=result|none] [maxgames=N] [version=2|3] [payload=N]
+             [book=<evaluated book>]
     gamefile --gam2pgn in=<game file> out=<pgn> [maxgames=N] [values=true|false]
 
 Both may be given in one call; `--pgn2gam` runs first.
@@ -91,6 +92,25 @@ into each other through a pgn:
 
     gamefile --book2pgn in=lines.bok out=lines.pgn values=true
     gamefile --pgn2gam in=lines.pgn out=lines.gam version=3 wdl=none
+
+### Values for the opening: an evaluated book
+
+The moves of the opening a game was started from carry no value in its pgn - the engines never
+searched them - and are missing from the training data. `qapla-engine-tester --bookeval` searches
+every position of a book once and writes the scores into a new book (payload id
+`qapla-search-score-v1`: every node carries, as two signed bytes, the score of the position its
+move is played from, from the side to move, in centipawns; see the README of the tester). With
+`book=`, `--pgn2gam` gives every ply without a value that lies in that book the book's score, as
+if it had stood in the comment, and counts what is still without one:
+
+    gamefile --pgn2book in=start-positions.pgn out=start-positions.bok
+    qapla-engine-tester --concurrency=30 --engine name=hce cmd=<engine> proto=uci tc=depth:9 \
+        --bookeval book=start-positions.bok out=start-positions-eval.bok
+    gamefile --pgn2gam in=games.pgn out=games.gam book=start-positions-eval.bok
+
+A game is followed through the book as long as its moves are there; the file written is the
+normal game file of version 2. `--book2pgn values=true` writes the scores of an evaluated book into
+the comments, as the tester writes them.
 
 ### The readers of qapla-engine-tester
 

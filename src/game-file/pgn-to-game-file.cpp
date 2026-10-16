@@ -27,6 +27,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "book-file.h"
 #include "game-file.h"
 #include "pgn-reader.h"
 
@@ -65,6 +66,41 @@ namespace GameFile {
 		 * the same, and "without a value" can only be counted before the first value of the file was
 		 * seen. Both shape what is printed and the perspective check, so they are kept as they are.
 		 */
+		struct BookCounters {
+			/** Plies whose value came from the book. */
+			uint64_t filled = 0;
+			/** Plies of the written games that are still without a value. */
+			uint64_t withoutValue = 0;
+			/** Games that do not begin with a move of the book. */
+			uint64_t outsideBook = 0;
+		};
+
+		/**
+		 * Gives every ply without a value that lies in the book the score of the book: the game is
+		 * followed through the tree as long as its moves are there, and a ply takes the score the
+		 * book holds for the position it is played from, as if it had stood in its comment.
+		 */
+		void fillFromBook(const Book& book, std::vector<PgnMove>& moves, BookCounters& counters) {
+			Board board;
+			Book::NodeIndex node = Book::ROOT;
+			for (size_t ply = 0; ply < moves.size(); ++ply) {
+				PgnMove& move = moves[ply];
+				const Move played{ .from = move.from, .to = move.to, .promotion = move.promotion };
+				const std::optional<uint32_t> code = packMove9(played, board);
+				node = code ? book.findMove(node, *code) : Book::NO_NODE;
+				if (node == Book::NO_NODE) {
+					if (ply == 0) ++counters.outsideBook;
+					return;
+				}
+				const int16_t score = book.node(node).score;
+				if (!move.value && score != NO_SCORE) {
+					move.value = valueOfScore(score);
+					++counters.filled;
+				}
+				board.apply(played);
+			}
+		}
+
 		std::optional<Game> gameRecords(const PgnTags& tags,
 			std::vector<PgnMove> moves, bool useResult, uint32_t version, Counters& counters) {
 			if (tags.count("FEN") != 0) {
@@ -130,6 +166,16 @@ namespace GameFile {
 
 	bool PgnToGameFile::convert(const std::string& pgnPath, const std::string& gamePath) const {
 		Counters counters;
+		BookCounters bookCounters;
+		std::optional<Book> book;
+		if (!bookPath.empty()) {
+			book.emplace();
+			book->read(bookPath);
+			if (book->header.payloadId != SCORE_PAYLOAD_ID) {
+				throw std::runtime_error(bookPath + " holds no search scores; give a book evaluated by "
+					"qapla-engine-tester --bookeval");
+			}
+		}
 		// Written to a file of its own first: a file that is refused is decided only at the end, and
 		// then nothing may be left under the name of the game file.
 		const std::string partPath = gamePath + ".part";
@@ -139,11 +185,15 @@ namespace GameFile {
 			std::vector<PgnMove> moves = parseMovetext(movetext, counters.badComments);
 			if (moves.empty()) return true;
 			++counters.games;
+			if (book && tags.count("FEN") == 0) fillFromBook(*book, moves, bookCounters);
 			const std::optional<Game> records = gameRecords(tags, std::move(moves), useResult,
 				format.version, counters);
 			if (records) {
 				writer.write(*records);
 				++counters.written;
+				for (const Record& record : *records) {
+					if (record.value == NO_GAME_VALUE) ++bookCounters.withoutValue;
+				}
 			}
 			return maxGames == 0 || counters.games < maxGames;
 		});
@@ -166,6 +216,12 @@ namespace GameFile {
 			(unsigned long long)counters.skippedFen, (unsigned long long)counters.skippedNoValue,
 			(unsigned long long)counters.skippedUnpackable, (unsigned long long)counters.truncated,
 			(unsigned long long)counters.badComments);
+		if (book) {
+			std::printf("from the book: %llu plies filled, %llu plies of the written games still without "
+				"a value, %llu games not beginning with a book move\n",
+				(unsigned long long)bookCounters.filled, (unsigned long long)bookCounters.withoutValue,
+				(unsigned long long)bookCounters.outsideBook);
+		}
 		return true;
 	}
 }

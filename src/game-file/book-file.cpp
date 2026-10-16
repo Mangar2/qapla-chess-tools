@@ -106,12 +106,20 @@ namespace GameFile {
 		for (NodeIndex child = nodes_[parent].firstChild; child != NO_NODE; child = nodes_[child].nextSibling) {
 			if (nodes_[child].move == move) return child;
 		}
-		return appendChild(parent, Node{ .move = move });
+		return appendChild(parent, Node{ .move = uint16_t(move) });
+	}
+
+	Book::NodeIndex Book::findMove(NodeIndex parent, uint32_t move) const {
+		for (NodeIndex child = nodes_[parent].firstChild; child != NO_NODE; child = nodes_[child].nextSibling) {
+			if (nodes_[child].move == move) return child;
+		}
+		return NO_NODE;
 	}
 
 	Book::NodeIndex Book::appendChild(NodeIndex parent, const Node& node) {
 		const NodeIndex child = NodeIndex(nodes_.size());
-		nodes_.push_back(Node{ .move = node.move, .priority = node.priority, .value = node.value });
+		nodes_.push_back(Node{ .move = node.move, .value = node.value, .score = node.score,
+			.priority = node.priority });
 		// The new node is a leaf, and a parent that had no child until now stops being one.
 		if (nodes_[parent].firstChild == NO_NODE) {
 			nodes_[parent].firstChild = child;
@@ -158,7 +166,11 @@ namespace GameFile {
 			data.resize(at + nodeSize, 0);
 			data[at] = uint8_t(bits);
 			data[at + 1] = uint8_t(bits >> 8);
-			if (header.payload >= VALUE_PAYLOAD) {
+			if (header.payload >= VALUE_PAYLOAD && header.payloadId == SCORE_PAYLOAD_ID) {
+				data[at + 2] = uint8_t(uint16_t(node.score));
+				data[at + 3] = uint8_t(uint16_t(node.score) >> 8);
+			}
+			else if (header.payload >= VALUE_PAYLOAD) {
 				data[at + 2] = uint8_t(node.value & MAX_VALUE_CODE);
 				data[at + 3] = uint8_t((node.value & MAX_VALUE_CODE) >> 8);
 			}
@@ -210,6 +222,8 @@ namespace GameFile {
 		const uint32_t count = file.readInt("the header");
 
 		nodes_.assign(1, Node{});
+		// Known from the header: growing the array instead would hold up to twice the book at once.
+		nodes_.reserve(size_t(count) + 1);
 		leaves_ = 0;
 		// One frame per level of the tree that is still being filled: the node the level hangs
 		// below, and whether that node has a sibling of its own - which is what says how many levels
@@ -224,9 +238,13 @@ namespace GameFile {
 			if (frames.empty()) throw std::runtime_error(path + " is not a book: nodes behind the tree");
 			file.read(bytes.data(), nodeSize, "the nodes");
 			const uint32_t bits = uint32_t(bytes[0]) | (uint32_t(bytes[1]) << 8);
-			Node node{ .move = (bits >> MOVE_SHIFT) & MOVE_MASK, .priority = (bits >> PRIORITY_SHIFT) & PRIORITY_MASK };
+			Node node{ .move = uint16_t((bits >> MOVE_SHIFT) & MOVE_MASK),
+				.priority = uint8_t((bits >> PRIORITY_SHIFT) & PRIORITY_MASK) };
 			if (header.payload >= VALUE_PAYLOAD && header.payloadId == VALUE_PAYLOAD_ID) {
-				node.value = (uint32_t(bytes[2]) | (uint32_t(bytes[3]) << 8)) & MAX_VALUE_CODE;
+				node.value = uint16_t((uint32_t(bytes[2]) | (uint32_t(bytes[3]) << 8)) & MAX_VALUE_CODE);
+			}
+			else if (header.payload >= VALUE_PAYLOAD && header.payloadId == SCORE_PAYLOAD_ID) {
+				node.score = int16_t(uint16_t(bytes[2] | (bytes[3] << 8)));
 			}
 			const NodeIndex added = appendChild(frames.back().parent, node);
 			if (bits & HAS_CHILD) {

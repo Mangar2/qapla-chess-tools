@@ -29,7 +29,8 @@ namespace GameFile {
 	 * in, which a tester takes as openings and pgn2book and pgn2gam read back. Every move of the book
 	 * is in it, the inner ones as the beginning of the lines below them.
 	 *
-	 * With values, every move with a value gets it as a comment, as gam2pgn writes it.
+	 * With values, every move with a value gets it as a comment, as gam2pgn writes it; in a book
+	 * evaluated by qapla-engine-tester --bookeval the search score, as the tester writes it.
 	 */
 	struct BookToPgn {
 		/** Stops after this many lines; 0 for all of them. */
