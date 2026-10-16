@@ -27,6 +27,7 @@
  *   gamefile --gam2binpack in=<game file> out=<binpack> [maxgames=N]
  *   gamefile --pgn2book in=<pgn or raw> out=<book> [payload=N] [maxgames=N] [maxply=N]
  *   gamefile --book2pgn in=<book> out=<pgn> [maxlines=N] [values=true|false]
+ *   gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false]
  *
  * Several may be given in one call; they run in this order. See GameFile::PgnToGameFile and
  * GameFile::GameFileToPgn, GameFile::PgnToBook and GameFile::BookToPgn for what is read, written
@@ -43,6 +44,7 @@
 
 #include "app-error.h"
 #include "cli-settings-manager.h"
+#include "game-file/book-to-game-file.h"
 #include "game-file/book-to-pgn.h"
 #include "game-file/game-file-to-binpack.h"
 #include "game-file/game-file-to-pgn.h"
@@ -113,6 +115,16 @@ namespace {
 				{ "values", { "Writes the values into the comments, in pawns from the side to move, "
 					"as pgn2gam and pgn2book read them", false, false, ValueType::Bool } },
 			});
+		Manager::registerGroup("book2gam",
+			"Writes a book evaluated by qapla-engine-tester --bookeval as a game file of version 2: one game "
+			"per line, every evaluated position carrying its value exactly once, in the first line through it.",
+			true, {
+				{ "in", { "The evaluated book to read", true, std::nullopt, ValueType::PathExists } },
+				{ "out", { "The game file to write", true, std::nullopt, ValueType::PathParentExists } },
+				{ "compact", { "Leaves out the lines without a position seen first in them and the plies "
+					"behind the last value of a line: the same labels in a fraction of the file", false, false,
+					ValueType::Bool } },
+			});
 	}
 
 	uint64_t maxGamesOf(int value) { return uint64_t(value < 0 ? 0 : value); }
@@ -180,6 +192,11 @@ namespace {
 			any = true;
 			const GameFile::BookToPgn converter{ .maxLines = maxGamesOf(group->get<int>("maxlines")),
 				.withValues = group->get<bool>("values") };
+			converter.convert(group->get<std::string>("in"), group->get<std::string>("out"));
+		}
+		if (const auto group = Manager::getGroupInstance("book2gam")) {
+			any = true;
+			const GameFile::BookToGameFile converter{ .compact = group->get<bool>("compact") };
 			converter.convert(group->get<std::string>("in"), group->get<std::string>("out"));
 		}
 		if (!any) {

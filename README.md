@@ -59,6 +59,7 @@ out from the header which one a file is. There is no direct conversion; it goes 
 
     gamefile --pgn2book in=<pgn or .raw> out=<book> [payload=N] [maxgames=N] [maxply=N]
     gamefile --book2pgn in=<book> out=<pgn> [maxlines=N] [values=true|false]
+    gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false]
 
 `--pgn2book` takes every game of the pgn as a line from the start position; lines that begin alike
 share their nodes. It reads with the pgn reader of qapla-engine-tester, so the moves may be in short
@@ -111,6 +112,26 @@ if it had stood in the comment, and counts what is still without one:
 A game is followed through the book as long as its moves are there; the file written is the
 normal game file of version 2. `--book2pgn values=true` writes the scores of an evaluated book into
 the comments, as the tester writes them.
+
+### The evaluated book as training data of its own
+
+`--book2gam` writes an evaluated book as a game file of version 2, so that every evaluated position
+of the book is in the training data exactly once - instead of once per game that starts from it,
+the start position ten million times:
+
+    gamefile --book2gam in=start-positions-eval.bok out=start-positions.gam [compact=true]
+
+Every line of the book, from the start position to a leaf, is one game. A ply carries the score of
+the position it is played from, converted as `--pgn2gam book=` converts it, so both give a position
+the same label - but only in the first line through that position, in the order of the book; in the
+other lines it has no value (code 0), which the training skips. The leaves were never searched, and
+no game has a result. The output says how many plies carry a value; it has to be the number of
+evaluated positions of the book, which it prints beside it.
+
+`compact=true` leaves out what carries no value - the lines without a position seen first in them,
+and the plies behind the last value of a line - with the same labels in the file. For the book of
+the 10 million start positions that is 4.3 million games and 78 million plies instead of 10 million
+and 179 million: about 240 MB instead of 550 MB.
 
 ### The readers of qapla-engine-tester
 
