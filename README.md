@@ -64,6 +64,7 @@ out from the header which one a file is. There is no direct conversion; it goes 
     gamefile --pgn2book in=<pgn or .raw> out=<book> [payload=N] [maxgames=N] [maxply=N]
     gamefile --book2pgn in=<book> out=<pgn> [maxlines=N] [values=true|false]
     gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false]
+    gamefile --bookwdl book=<book> out=<book> in=<pgn or game file>[,<pgn or game file>...]
 
 `--pgn2book` takes every game of the pgn as a line from the start position; lines that begin alike
 share their nodes. It reads with the pgn reader of qapla-engine-tester, so the moves may be in short
@@ -136,6 +137,31 @@ evaluated positions of the book, which it prints beside it.
 and the plies behind the last value of a line - with the same labels in the file. For the book of
 the 10 million start positions that is 4.3 million games and 78 million plies instead of 10 million
 and 179 million: about 240 MB instead of 550 MB.
+
+### Training a book with games: --bookwdl
+
+`--bookwdl` counts the results of games in the nodes of a book: every game is followed from the
+start position through the book as long as its moves are there, and every node it passes counts a
+win, a draw or a loss of the side that plays the node's move - the side to move in the position
+before it, white for the first move. At the first move that is not in the book the game stops
+counting; no node is added, the tree and the moves stay as they are.
+
+    gamefile --bookwdl book=start-positions.bok out=start-positions-wdl.bok in=part-01.pgn,part-02.pgn
+    gamefile --bookwdl book=start-positions-wdl.bok out=start-positions-wdl.bok in=part-03.pgn
+
+The output has the payload id `qapla-wdl-count-v1`: twelve bytes per node, three unsigned 32 bit
+counts, little endian - wins, draws, losses - which makes a node 14 bytes. An engine book reads it
+with a payload type of 12 bytes and an alignment of at most two (`uint16_t[6]`, `uint8_t[12]`), as
+`book9/book.h` asks of every payload. A book that has the payload already is trained further, its
+counts added to - two runs over two halves of a set give the book one run over all of it gives; any
+other book starts at zero. A count stops at 2^32 - 1, with a warning, instead of overflowing.
+
+The games are pgn files in long notation, as `--pgn2gam` reads them, or game files, told by their
+magic. The result of a pgn game is its Result tag or, without one, the token ending its moves; the
+result of a game file is that of its first record. A game without a result is not counted. The
+output gives the games read, counted, without a result and not beginning in the book, and the
+results of the counted games. One part of the training set, a million games, takes 15 seconds with
+the book of the 10 million start positions in 570 MB.
 
 ### The readers of qapla-engine-tester
 

@@ -43,6 +43,13 @@
  * the first two bytes of a node hold, signed, the search score of the position its move is played
  * from, seen from the side to move there - centipawns from -30000 to 30000, 32000 - n for a mate in
  * n moves, -32000 + n for being mated in n, -32768 for no score.
+ *
+ * A book trained with games by gamefile --bookwdl has the payload id WDL_PAYLOAD_ID and twelve bytes
+ * of payload: three unsigned 32 bit counts, little endian - the games that went through the node
+ * and were won, drawn and lost by the side that plays its move, the side to move in the position
+ * before it. A count stops at 2^32 - 1 rather than overflowing. The node is 14 bytes: an engine book
+ * reads it with a payload type of 12 bytes and an alignment of at most two, uint16_t[6] or
+ * uint8_t[12], as book9/book.h asks of every payload.
  */
 
 #include <cstdint>
@@ -62,6 +69,18 @@ namespace GameFile {
 	constexpr int16_t NO_SCORE = INT16_MIN;
 	constexpr int32_t MAX_SCORE_CENTIPAWNS = 30000;
 	constexpr int32_t SCORE_MATE = 32000;
+	/** The payload id of a book trained with games by gamefile --bookwdl, see WdlCount. */
+	constexpr const char* WDL_PAYLOAD_ID = "qapla-wdl-count-v1";
+	constexpr uint32_t WDL_PAYLOAD = 12;
+
+	/** The games through a book node, from the side that plays its move. */
+	struct WdlCount {
+		uint32_t wins = 0;
+		uint32_t draws = 0;
+		uint32_t losses = 0;
+		bool operator==(const WdlCount&) const = default;
+	};
+
 	/** The value pgn2gam reads a mate as, in the unit of the engine. */
 	constexpr int MATE_VALUE = 30000;
 
@@ -120,6 +139,12 @@ namespace GameFile {
 		size_t leafCount() const { return leaves_; }
 
 		BookHeader header;
+
+		/**
+		 * The counts of a book with the WDL payload, by node index; empty for every other book. Kept
+		 * apart from the nodes, which a book without them should not pay for.
+		 */
+		std::vector<WdlCount> wdl;
 
 		/** @throws std::runtime_error if the file cannot be written. */
 		void write(const std::string& path) const;

@@ -153,8 +153,16 @@ namespace GameFile {
 		const size_t nodeSize = 2 + size_t(header.payload);
 		const auto push = [&](NodeIndex index) { if (index != NO_NODE) stack.push_back(index); };
 		push(nodes_[ROOT].firstChild);
+		const bool withWdl = header.payloadId == WDL_PAYLOAD_ID;
+		if (withWdl && (header.payload < WDL_PAYLOAD || wdl.size() != nodes_.size())) {
+			throw std::runtime_error("a book with the WDL payload needs 12 bytes and a count for every node");
+		}
+		const auto put32 = [&](size_t at, uint32_t value) {
+			for (int byte = 0; byte < 4; ++byte) data[at + byte] = uint8_t(value >> (8 * byte));
+		};
 		while (!stack.empty()) {
-			const Node& node = nodes_[stack.back()];
+			const NodeIndex index = stack.back();
+			const Node& node = nodes_[index];
 			stack.pop_back();
 			push(node.nextSibling);
 			push(node.firstChild);
@@ -166,7 +174,12 @@ namespace GameFile {
 			data.resize(at + nodeSize, 0);
 			data[at] = uint8_t(bits);
 			data[at + 1] = uint8_t(bits >> 8);
-			if (header.payload >= VALUE_PAYLOAD && header.payloadId == SCORE_PAYLOAD_ID) {
+			if (withWdl) {
+				put32(at + 2, wdl[index].wins);
+				put32(at + 6, wdl[index].draws);
+				put32(at + 10, wdl[index].losses);
+			}
+			else if (header.payload >= VALUE_PAYLOAD && header.payloadId == SCORE_PAYLOAD_ID) {
 				data[at + 2] = uint8_t(uint16_t(node.score));
 				data[at + 3] = uint8_t(uint16_t(node.score) >> 8);
 			}
@@ -225,6 +238,9 @@ namespace GameFile {
 		// Known from the header: growing the array instead would hold up to twice the book at once.
 		nodes_.reserve(size_t(count) + 1);
 		leaves_ = 0;
+		const bool withWdl = header.payloadId == WDL_PAYLOAD_ID && header.payload >= WDL_PAYLOAD;
+		wdl.clear();
+		if (withWdl) wdl.assign(size_t(count) + 1, WdlCount{});
 		// One frame per level of the tree that is still being filled: the node the level hangs
 		// below, and whether that node has a sibling of its own - which is what says how many levels
 		// are finished once a node without a sibling is read.
@@ -234,6 +250,10 @@ namespace GameFile {
 		};
 		std::vector<Frame> frames{ Frame{ .parent = ROOT, .parentHasSibling = false } };
 		std::vector<uint8_t> bytes(nodeSize);
+		const auto get32 = [&](size_t at) {
+			return uint32_t(bytes[at]) | (uint32_t(bytes[at + 1]) << 8) | (uint32_t(bytes[at + 2]) << 16)
+				| (uint32_t(bytes[at + 3]) << 24);
+		};
 		for (uint32_t index = 0; index < count; ++index) {
 			if (frames.empty()) throw std::runtime_error(path + " is not a book: nodes behind the tree");
 			file.read(bytes.data(), nodeSize, "the nodes");
@@ -247,6 +267,7 @@ namespace GameFile {
 				node.score = int16_t(uint16_t(bytes[2] | (bytes[3] << 8)));
 			}
 			const NodeIndex added = appendChild(frames.back().parent, node);
+			if (withWdl) wdl[added] = WdlCount{ .wins = get32(2), .draws = get32(6), .losses = get32(10) };
 			if (bits & HAS_CHILD) {
 				frames.push_back(Frame{ .parent = added, .parentHasSibling = (bits & HAS_RIGHT_SIBLING) != 0 });
 			}

@@ -28,6 +28,7 @@
  *   gamefile --pgn2book in=<pgn or raw> out=<book> [payload=N] [maxgames=N] [maxply=N]
  *   gamefile --book2pgn in=<book> out=<pgn> [maxlines=N] [values=true|false]
  *   gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false]
+ *   gamefile --bookwdl book=<book> out=<book> in=<pgn or game file>[,<pgn or game file>...]
  *
  * Several may be given in one call; they run in this order. See GameFile::PgnToGameFile and
  * GameFile::GameFileToPgn, GameFile::PgnToBook and GameFile::BookToPgn for what is read, written
@@ -46,6 +47,7 @@
 #include "cli-settings-manager.h"
 #include "game-file/book-to-game-file.h"
 #include "game-file/book-to-pgn.h"
+#include "game-file/book-wdl.h"
 #include "game-file/game-file-to-binpack.h"
 #include "game-file/game-file-to-pgn.h"
 #include "game-file/pgn-to-book.h"
@@ -125,6 +127,17 @@ namespace {
 					"behind the last value of a line: the same labels in a fraction of the file", false, false,
 					ValueType::Bool } },
 			});
+		Manager::registerGroup("bookwdl",
+			"Trains a 9 bit book with games: every game counts its result in the book nodes it runs through, "
+			"as a win, draw or loss of the side that plays the node's move. A book trained before is "
+			"trained further.",
+			true, {
+				{ "book", { "The book to train", true, std::nullopt, ValueType::PathExists } },
+				{ "out", { "The trained book to write; may be the book itself", true, std::nullopt,
+					ValueType::PathParentExists } },
+				{ "in", { "The games: pgn files in long notation or game files, separated by commas", true,
+					std::nullopt, ValueType::String } },
+			});
 	}
 
 	uint64_t maxGamesOf(int value) { return uint64_t(value < 0 ? 0 : value); }
@@ -198,6 +211,24 @@ namespace {
 			any = true;
 			const GameFile::BookToGameFile converter{ .compact = group->get<bool>("compact") };
 			converter.convert(group->get<std::string>("in"), group->get<std::string>("out"));
+		}
+		if (const auto group = Manager::getGroupInstance("bookwdl")) {
+			any = true;
+			GameFile::BookWdl converter;
+			std::string list = group->get<std::string>("in");
+			for (size_t start = 0; start <= list.size();) {
+				const size_t end = std::min(list.find(',', start), list.size());
+				const std::string input = trim(list.substr(start, end - start));
+				if (!input.empty()) {
+					if (!std::filesystem::exists(input)) {
+						throw AppError::makeInvalidParameters("bookwdl: " + input + " does not exist");
+					}
+					converter.inputs.push_back(input);
+				}
+				start = end + 1;
+			}
+			if (converter.inputs.empty()) throw AppError::makeInvalidParameters("bookwdl: no games given with in=");
+			converter.convert(group->get<std::string>("book"), group->get<std::string>("out"));
 		}
 		if (!any) {
 			Manager::showHelp();
