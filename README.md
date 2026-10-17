@@ -63,7 +63,7 @@ out from the header which one a file is. There is no direct conversion; it goes 
 
     gamefile --pgn2book in=<pgn or .raw> out=<book> [payload=N] [maxgames=N] [maxply=N]
     gamefile --book2pgn in=<book> out=<pgn> [maxlines=N] [values=true|false]
-    gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false]
+    gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false] [wdl=k:<k>|w:<w>]
     gamefile --bookwdl book=<book> out=<book> in=<pgn or game file>[,<pgn or game file>...] [rate=<book>]
     gamefile --wdl2rate in=<book of counts> out=<book of rates>
 
@@ -212,6 +212,24 @@ the book of scores and rates as well, the output then also gives the nodes carry
 positions evaluated. `--book2pgn values=true` writes all of it, `{+0.25 rate 187 sig 7}` or
 `{+0.25 wdl 12 3 4}`. An engine book reads the two with a payload of 14 or 4 bytes and an alignment
 of at most two.
+
+### Values mixed with the results: --book2gam wdl=
+
+With a book of scores and counts - `--bookwdl` of an evaluated book - `--book2gam` can move the value
+of every position towards the results of the games through it:
+
+    gamefile --book2gam in=start-positions-eval-wdl.bok out=book.gam compact=true wdl=k:3
+    gamefile --book2gam in=start-positions-eval-wdl.bok out=book.gam compact=true wdl=w:0.25
+
+For the side to move in the position: `p` is the win probability of its score as the converter
+makes it without the option, `1 / (1 + exp(-score / 400))`; `N` the games through it and
+`r = (W + D / 2) / N` their points; `w = N / (N + k)` with `wdl=k:<k>`, or the fixed `w` of
+`wdl=w:<w>`. The value written is the code of `(1 - w) * p + w * r`, rounded as always. A position no
+game went through, and a mate score, keep their value. The counts of a position are those of the
+node it is the position after, won and lost exchanged - they are counted for the side that played
+the node's move - and for the start position the sums of the moves from it. The output gives the
+positions adjusted and the mean `|target - p|`, per number of games. Without the option the file is
+the one it always was.
 
 ### The readers of qapla-engine-tester
 

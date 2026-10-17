@@ -40,6 +40,24 @@ namespace GameFile {
 		 */
 		bool compact = false;
 
+		/** How the results of the games weigh against the search, see wdl. */
+		enum class WdlWeight { None, PerGames, Fixed };
+
+		/**
+		 * Mixes the value of every position with the results of the games through it. For the side
+		 * to move in the position: p, the win probability of the score as codeOfValue makes it; N
+		 * the games through the position and r = (W + D / 2) / N their points; w = N / (N + k) with
+		 * PerGames and k = wdlValue, w = wdlValue with Fixed. The value written is the code of
+		 * (1 - w) * p + w * r. A position no game went through, and a mate score, keep their value.
+		 * The counts of a position are those of the node it is the position after - won and lost
+		 * exchanged, they are counted for the side that played the node's move - and for the start
+		 * position the sums of the moves from it. Needs a book with scores and counts, --bookwdl of
+		 * an evaluated book.
+		 */
+		WdlWeight wdl = WdlWeight::None;
+		/** k of w = N / (N + k), the games at which results and search weigh the same; or w itself. */
+		double wdlValue = 3.0;
+
 		/**
 		 * Converts and prints what it wrote. Returns the number of games.
 		 * @throws std::runtime_error if a file cannot be read or written, the book holds no search

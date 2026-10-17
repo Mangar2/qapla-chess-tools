@@ -27,7 +27,7 @@
  *   gamefile --gam2binpack in=<game file> out=<binpack> [maxgames=N]
  *   gamefile --pgn2book in=<pgn or raw> out=<book> [payload=N] [maxgames=N] [maxply=N]
  *   gamefile --book2pgn in=<book> out=<pgn> [maxlines=N] [values=true|false]
- *   gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false]
+ *   gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false] [wdl=k:<k>|w:<w>]
  *   gamefile --bookwdl book=<book> out=<book> in=<pgn or game file>[,<pgn or game file>...]
  *            [rate=<book>]
  *   gamefile --wdl2rate in=<book of counts> out=<book of rates>
@@ -40,6 +40,7 @@
  */
 
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -129,6 +130,9 @@ namespace {
 				{ "compact", { "Leaves out the lines without a position seen first in them and the plies "
 					"behind the last value of a line: the same labels in a fraction of the file", false, false,
 					ValueType::Bool } },
+				{ "wdl", { "Mixes the value of every position with the results of the games through it, "
+					"(1 - w) * p + w * r: k:<k> for w = N / (N + k), w:<w> for a fixed w; needs a book of scores "
+					"and counts (--bookwdl)", false, std::string(""), ValueType::String } },
 			});
 		Manager::registerGroup("bookwdl",
 			"Trains a 9 bit book with games: every game counts its result in the book nodes it runs through, "
@@ -222,7 +226,21 @@ namespace {
 		}
 		if (const auto group = Manager::getGroupInstance("book2gam")) {
 			any = true;
-			const GameFile::BookToGameFile converter{ .compact = group->get<bool>("compact") };
+			using Weight = GameFile::BookToGameFile::WdlWeight;
+			Weight weight = Weight::None;
+			double value = 0.0;
+			const std::string wdl = group->get<std::string>("wdl");
+			if (!wdl.empty()) {
+				char* rest = nullptr;
+				value = wdl.size() > 2 ? std::strtod(wdl.c_str() + 2, &rest) : -1.0;
+				const bool number = rest != nullptr && *rest == '\0';
+				if (wdl.rfind("k:", 0) == 0 && number && value >= 0.0) weight = Weight::PerGames;
+				else if (wdl.rfind("w:", 0) == 0 && number && value >= 0.0 && value <= 1.0) weight = Weight::Fixed;
+				else throw AppError::makeInvalidParameters("wdl takes k:<k> with k >= 0 or w:<w> with 0 <= w <= 1, not \""
+					+ wdl + "\"");
+			}
+			const GameFile::BookToGameFile converter{ .compact = group->get<bool>("compact"), .wdl = weight,
+				.wdlValue = value };
 			converter.convert(group->get<std::string>("in"), group->get<std::string>("out"));
 		}
 		if (const auto group = Manager::getGroupInstance("bookwdl")) {
