@@ -50,6 +50,10 @@
  * before it. A count stops at 2^32 - 1 rather than overflowing. The node is 14 bytes: an engine book
  * reads it with a payload type of 12 bytes and an alignment of at most two, uint16_t[6] or
  * uint8_t[12], as book9/book.h asks of every payload.
+ *
+ * Made from such a book by gamefile --wdl2rate, a book with the payload id RATE_PAYLOAD_ID carries
+ * two bytes per node, see WdlRate: the rate of the games won by the side that plays the move, and
+ * how many games that rate rests on.
  */
 
 #include <cstdint>
@@ -80,6 +84,44 @@ namespace GameFile {
 		uint32_t losses = 0;
 		bool operator==(const WdlCount&) const = default;
 	};
+
+	/** The payload id of a book made by gamefile --wdl2rate, see WdlRate. */
+	constexpr const char* RATE_PAYLOAD_ID = "qapla-wdl-rate-v1";
+	constexpr uint32_t RATE_PAYLOAD = 2;
+
+	/**
+	 * The counts of a node in two bytes.
+	 *
+	 * rate: the share of the points won by the side that plays the node's move, a draw counting
+	 * half - (wins + draws / 2) / games - scaled to 0..255 and rounded half up. 0 and 255 mean
+	 * exactly that: every game lost, every game won; every other share is kept within 1..254.
+	 * significance: floor(log2 games) + 1 - 1 for one game, 2 for 2-3, 3 for 4-7, 4 for 8-15, 5 for
+	 * 16-31 and so on; 0 for a node no game went through, whose rate is then 0 as well.
+	 */
+	struct WdlRate {
+		uint8_t rate = 0;
+		uint8_t significance = 0;
+		bool operator==(const WdlRate&) const = default;
+	};
+
+	/** The rate and significance of the counts of a node. */
+	constexpr WdlRate rateOf(const WdlCount& count) {
+		const uint64_t games = uint64_t(count.wins) + count.draws + count.losses;
+		if (games == 0) return WdlRate{};
+		uint8_t significance = 0;
+		for (uint64_t rest = games; rest != 0; rest >>= 1) ++significance;
+		// Points in halves: a win two, a draw one, out of two per game.
+		const uint64_t halves = 2 * uint64_t(count.wins) + count.draws;
+		uint64_t rate;
+		if (halves == 0) rate = 0;
+		else if (halves == 2 * games) rate = 255;
+		else {
+			// halves / (2 games) * 255, rounded half up, kept away from the two ends.
+			rate = (halves * 255 + games) / (2 * games);
+			rate = rate < 1 ? 1 : (rate > 254 ? 254 : rate);
+		}
+		return WdlRate{ .rate = uint8_t(rate), .significance = significance };
+	}
 
 	/** The value pgn2gam reads a mate as, in the unit of the engine. */
 	constexpr int MATE_VALUE = 30000;
@@ -145,6 +187,9 @@ namespace GameFile {
 		 * apart from the nodes, which a book without them should not pay for.
 		 */
 		std::vector<WdlCount> wdl;
+
+		/** The rates of a book with the rate payload, by node index; empty for every other book. */
+		std::vector<WdlRate> rates;
 
 		/** @throws std::runtime_error if the file cannot be written. */
 		void write(const std::string& path) const;

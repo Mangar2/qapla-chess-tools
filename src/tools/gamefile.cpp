@@ -29,6 +29,8 @@
  *   gamefile --book2pgn in=<book> out=<pgn> [maxlines=N] [values=true|false]
  *   gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false]
  *   gamefile --bookwdl book=<book> out=<book> in=<pgn or game file>[,<pgn or game file>...]
+ *            [rate=<book>]
+ *   gamefile --wdl2rate in=<book of counts> out=<book of rates>
  *
  * Several may be given in one call; they run in this order. See GameFile::PgnToGameFile and
  * GameFile::GameFileToPgn, GameFile::PgnToBook and GameFile::BookToPgn for what is read, written
@@ -48,6 +50,7 @@
 #include "game-file/book-to-game-file.h"
 #include "game-file/book-to-pgn.h"
 #include "game-file/book-wdl.h"
+#include "game-file/book-wdl-rate.h"
 #include "game-file/game-file-to-binpack.h"
 #include "game-file/game-file-to-pgn.h"
 #include "game-file/pgn-to-book.h"
@@ -137,6 +140,16 @@ namespace {
 					ValueType::PathParentExists } },
 				{ "in", { "The games: pgn files in long notation or game files, separated by commas", true,
 					std::nullopt, ValueType::String } },
+				{ "rate", { "If given, the trained book is also written here with the two byte rate payload, "
+					"as --wdl2rate writes it", false, std::string(""), ValueType::String } },
+			});
+		Manager::registerGroup("wdl2rate",
+			"Writes a book trained by --bookwdl with two bytes per node instead of the counts: the share "
+			"of points won by the side that plays the move, 0..255, and the number of games as "
+			"floor(log2 games) + 1; prints how the nodes spread over the numbers of games.",
+			true, {
+				{ "in", { "The book of counts to read", true, std::nullopt, ValueType::PathExists } },
+				{ "out", { "The book of rates to write", true, std::nullopt, ValueType::PathParentExists } },
 			});
 	}
 
@@ -228,7 +241,12 @@ namespace {
 				start = end + 1;
 			}
 			if (converter.inputs.empty()) throw AppError::makeInvalidParameters("bookwdl: no games given with in=");
+			converter.ratePath = group->get<std::string>("rate");
 			converter.convert(group->get<std::string>("book"), group->get<std::string>("out"));
+		}
+		if (const auto group = Manager::getGroupInstance("wdl2rate")) {
+			any = true;
+			GameFile::WdlToRate{}.convert(group->get<std::string>("in"), group->get<std::string>("out"));
 		}
 		if (!any) {
 			Manager::showHelp();

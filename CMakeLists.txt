@@ -135,6 +135,7 @@ add_library(qapla-game-file OBJECT
     src/game-file/book-to-pgn.cpp
     src/game-file/book-to-game-file.cpp
     src/game-file/book-wdl.cpp
+    src/game-file/book-wdl-rate.cpp
 )
 target_include_directories(qapla-game-file PUBLIC src)
 # The training data format of nnue-pytorch, copied from it (GPL 3, see SOURCE-COMMIT there). A

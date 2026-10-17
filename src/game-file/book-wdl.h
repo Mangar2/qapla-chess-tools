@@ -39,6 +39,8 @@ namespace GameFile {
 	struct BookWdl {
 		/** The pgn and game files, in this order; a game file is told by its magic. */
 		std::vector<std::string> inputs;
+		/** If not empty, the trained book is also written here with the rate payload, see --wdl2rate. */
+		std::string ratePath;
 
 		/**
 		 * Trains, writes and prints what it counted. Returns the number of games counted.

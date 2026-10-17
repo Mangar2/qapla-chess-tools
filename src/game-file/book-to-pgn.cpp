@@ -89,6 +89,10 @@ namespace GameFile {
 			if (move.promotion != NO_PIECE) frame.move += "nbrq"[(move.promotion >> 1) - 2];
 			if (withValues && entry.value != NO_GAME_VALUE) appendValueComment(frame.move, entry.value);
 			else if (withValues && entry.score != NO_SCORE) appendScoreComment(frame.move, entry.score);
+			else if (withValues && !book.rates.empty()) {
+				frame.move += " {rate " + std::to_string(book.rates[node].rate) + " sig "
+					+ std::to_string(book.rates[node].significance) + "}";
+			}
 			else if (withValues && !book.wdl.empty()) {
 				const WdlCount& count = book.wdl[node];
 				frame.move += " {wdl " + std::to_string(count.wins) + " " + std::to_string(count.draws) + " "

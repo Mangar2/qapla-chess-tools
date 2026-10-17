@@ -27,6 +27,7 @@
 #include <stdexcept>
 
 #include "book-file.h"
+#include "book-wdl-rate.h"
 #include "game-file.h"
 #include "pgn-reader.h"
 
@@ -181,6 +182,7 @@ namespace GameFile {
 			std::printf("WARNING: %llu counts stayed at the largest value, 2^32 - 1, instead of overflowing\n",
 				(unsigned long long)counters.saturated);
 		}
+		if (!ratePath.empty()) writeRateBook(book, ratePath);
 		return counters.counted;
 	}
 }

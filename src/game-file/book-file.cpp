@@ -157,6 +157,10 @@ namespace GameFile {
 		if (withWdl && (header.payload < WDL_PAYLOAD || wdl.size() != nodes_.size())) {
 			throw std::runtime_error("a book with the WDL payload needs 12 bytes and a count for every node");
 		}
+		const bool withRates = header.payloadId == RATE_PAYLOAD_ID;
+		if (withRates && (header.payload < RATE_PAYLOAD || rates.size() != nodes_.size())) {
+			throw std::runtime_error("a book with the rate payload needs 2 bytes and a rate for every node");
+		}
 		const auto put32 = [&](size_t at, uint32_t value) {
 			for (int byte = 0; byte < 4; ++byte) data[at + byte] = uint8_t(value >> (8 * byte));
 		};
@@ -174,7 +178,11 @@ namespace GameFile {
 			data.resize(at + nodeSize, 0);
 			data[at] = uint8_t(bits);
 			data[at + 1] = uint8_t(bits >> 8);
-			if (withWdl) {
+			if (withRates) {
+				data[at + 2] = rates[index].rate;
+				data[at + 3] = rates[index].significance;
+			}
+			else if (withWdl) {
 				put32(at + 2, wdl[index].wins);
 				put32(at + 6, wdl[index].draws);
 				put32(at + 10, wdl[index].losses);
@@ -241,6 +249,9 @@ namespace GameFile {
 		const bool withWdl = header.payloadId == WDL_PAYLOAD_ID && header.payload >= WDL_PAYLOAD;
 		wdl.clear();
 		if (withWdl) wdl.assign(size_t(count) + 1, WdlCount{});
+		const bool withRates = header.payloadId == RATE_PAYLOAD_ID && header.payload >= RATE_PAYLOAD;
+		rates.clear();
+		if (withRates) rates.assign(size_t(count) + 1, WdlRate{});
 		// One frame per level of the tree that is still being filled: the node the level hangs
 		// below, and whether that node has a sibling of its own - which is what says how many levels
 		// are finished once a node without a sibling is read.
@@ -268,6 +279,7 @@ namespace GameFile {
 			}
 			const NodeIndex added = appendChild(frames.back().parent, node);
 			if (withWdl) wdl[added] = WdlCount{ .wins = get32(2), .draws = get32(6), .losses = get32(10) };
+			if (withRates) rates[added] = WdlRate{ .rate = bytes[2], .significance = bytes[3] };
 			if (bits & HAS_CHILD) {
 				frames.push_back(Frame{ .parent = added, .parentHasSibling = (bits & HAS_RIGHT_SIBLING) != 0 });
 			}

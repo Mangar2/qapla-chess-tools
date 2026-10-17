@@ -64,7 +64,8 @@ out from the header which one a file is. There is no direct conversion; it goes 
     gamefile --pgn2book in=<pgn or .raw> out=<book> [payload=N] [maxgames=N] [maxply=N]
     gamefile --book2pgn in=<book> out=<pgn> [maxlines=N] [values=true|false]
     gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false]
-    gamefile --bookwdl book=<book> out=<book> in=<pgn or game file>[,<pgn or game file>...]
+    gamefile --bookwdl book=<book> out=<book> in=<pgn or game file>[,<pgn or game file>...] [rate=<book>]
+    gamefile --wdl2rate in=<book of counts> out=<book of rates>
 
 `--pgn2book` takes every game of the pgn as a line from the start position; lines that begin alike
 share their nodes. It reads with the pgn reader of qapla-engine-tester, so the moves may be in short
@@ -162,6 +163,21 @@ result of a game file is that of its first record. A game without a result is no
 output gives the games read, counted, without a result and not beginning in the book, and the
 results of the counted games. One part of the training set, a million games, takes 15 seconds with
 the book of the 10 million start positions in 570 MB.
+
+### Rates instead of counts: --wdl2rate
+
+`--wdl2rate` writes a book of counts with two bytes per node instead of twelve, payload id
+`qapla-wdl-rate-v1`, tree and moves as they are; `--bookwdl rate=<book>` writes it in the same run.
+The book of counts stays the one to train further.
+
+| Byte | Meaning |
+|---|---|
+| 1, rate | the share of points won by the side that plays the node's move, a draw counting half - (wins + draws / 2) / games - scaled to 0..255, rounded half up; 0 only if every game was lost, 255 only if every game was won, every other share within 1..254 |
+| 2, significance | floor(log2 games) + 1: 1 for one game, 2 for 2-3, 3 for 4-7, 4 for 8-15, 5 for 16-31 and so on; 0 if no game went through the node, the rate then 0 as well |
+
+The output gives, per significance, the nodes and those always lost (rate 0) and always won (rate
+255) - from 16 games on, with their sum, and below that apart. `--book2pgn values=true` writes the
+two bytes as `{rate <rate> sig <significance>}`.
 
 ### The readers of qapla-engine-tester
 
