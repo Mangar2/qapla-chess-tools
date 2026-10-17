@@ -77,7 +77,7 @@ namespace GameFile {
 		};
 
 		// Enters a node: unpacks its move on the board of its parent.
-		const auto enter = [&](Book::NodeIndex node, const Board& parent) {
+		const auto enter = [&](Book::NodeIndex node, Book::NodeIndex parentNode, const Board& parent) {
 			const Book::Node& entry = book.node(node);
 			const Move move = unpackMove9(entry.move, parent);
 			Frame frame{ .node = node, .board = parent, .move = {} };
@@ -92,8 +92,10 @@ namespace GameFile {
 				// Everything the node carries in one comment: "{+0.25 rate 187 sig 7}",
 				// "{+0.25 wdl 12 3 4}", or one of the parts alone.
 				std::string comment;
-				if (entry.score != NO_SCORE) {
-					appendScoreComment(comment, entry.score);
+				// The score a pgn comment gives a move: that of the position it is played from.
+				const int16_t score = book.scoreBefore(node, parentNode);
+				if (score != NO_SCORE) {
+					appendScoreComment(comment, score);
 					comment = comment.substr(2, comment.size() - 3);
 				}
 				std::string results;
@@ -115,11 +117,11 @@ namespace GameFile {
 
 		try {
 			const Board start;
-			if (book.node(Book::ROOT).firstChild != Book::NO_NODE) enter(book.node(Book::ROOT).firstChild, start);
+			if (book.node(Book::ROOT).firstChild != Book::NO_NODE) enter(book.node(Book::ROOT).firstChild, Book::ROOT, start);
 			while (!line.empty() && !failed && (maxLines == 0 || written < maxLines)) {
 				const Book::Node& current = book.node(line.back().node);
 				if (current.firstChild != Book::NO_NODE) {
-					enter(current.firstChild, line.back().board);
+					enter(current.firstChild, line.back().node, line.back().board);
 					continue;
 				}
 				writeLine();
@@ -128,7 +130,7 @@ namespace GameFile {
 				if (line.empty()) break;
 				const Book::NodeIndex sibling = book.node(line.back().node).nextSibling;
 				line.pop_back();
-				enter(sibling, line.empty() ? start : line.back().board);
+				enter(sibling, line.empty() ? Book::ROOT : line.back().node, line.empty() ? start : line.back().board);
 			}
 		}
 		catch (...) {

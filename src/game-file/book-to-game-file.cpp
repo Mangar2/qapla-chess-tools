@@ -32,7 +32,7 @@ namespace GameFile {
 	uint64_t BookToGameFile::convert(const std::string& bookPath, const std::string& gamePath) const {
 		Book book;
 		book.read(bookPath);
-		if (book.header.payloadId != SCORE_PAYLOAD_ID) {
+		if (!hasScores(book.header.payloadId)) {
 			throw std::runtime_error(bookPath + " holds no search scores; give a book evaluated by "
 				"qapla-engine-tester --bookeval");
 		}
@@ -41,12 +41,12 @@ namespace GameFile {
 		// index of that node; the root stands for the start position.
 		std::vector<bool> written(book.size() + 1, false);
 		uint64_t evaluated = 0;
-		for (Book::NodeIndex node = 1; node <= book.size(); ++node) {
+		// A position a move is played from, with a score - the ones a game file can carry.
+		for (Book::NodeIndex node = 0; node <= book.size(); ++node) {
 			const Book::NodeIndex child = book.node(node).firstChild;
-			if (child != Book::NO_NODE && book.node(child).score != NO_SCORE) ++evaluated;
+			if (child != Book::NO_NODE && book.scoreBefore(child, node) != NO_SCORE) ++evaluated;
 		}
 		const Book::NodeIndex firstMove = book.node(Book::ROOT).firstChild;
-		if (firstMove != Book::NO_NODE && book.node(firstMove).score != NO_SCORE) ++evaluated;
 
 		// Written to a file of its own first, renamed when it is complete.
 		const std::string partPath = gamePath + ".part";
@@ -66,7 +66,7 @@ namespace GameFile {
 			game.clear();
 			for (size_t ply = 0; ply < line.size(); ++ply) {
 				const Book::NodeIndex from = ply == 0 ? Book::ROOT : line[ply - 1].node;
-				const int16_t score = book.node(line[ply].node).score;
+				const int16_t score = book.scoreBefore(line[ply].node, from);
 				const bool first = score != NO_SCORE && !written[from];
 				if (ply >= MAX_PLIES) {
 					// The game file has one byte for the length of a game.

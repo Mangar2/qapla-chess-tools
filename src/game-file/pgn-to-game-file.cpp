@@ -93,12 +93,13 @@ namespace GameFile {
 				PgnMove& move = moves[ply];
 				const Move played{ .from = move.from, .to = move.to, .promotion = move.promotion };
 				const std::optional<uint32_t> code = packMove9(played, board);
+				const Book::NodeIndex parent = node;
 				node = code ? book.findMove(node, *code) : Book::NO_NODE;
 				if (node == Book::NO_NODE) {
 					if (ply == 0) ++counters.outsideBook;
 					return;
 				}
-				const int16_t score = book.node(node).score;
+				const int16_t score = book.scoreBefore(node, parent);
 				if (!move.value && score != NO_SCORE) {
 					move.value = valueOfScore(score);
 					++counters.filled;
@@ -188,7 +189,7 @@ namespace GameFile {
 		if (!bookPath.empty()) {
 			book.emplace();
 			book->read(bookPath);
-			if (book->header.payloadId != SCORE_PAYLOAD_ID) {
+			if (!hasScores(book->header.payloadId)) {
 				throw std::runtime_error(bookPath + " holds no search scores; give a book evaluated by "
 					"qapla-engine-tester --bookeval");
 			}

@@ -29,7 +29,7 @@ namespace GameFile {
 
 		enum HeaderTag : uint32_t {
 			END_OF_HEADER = 0, AUTHOR = 1, NAME = 2, BOOK_VERSION = 3, FILE_VERSION = 4,
-			PAYLOAD_ID = 5, NODE_SIZE = 6
+			PAYLOAD_ID = 5, NODE_SIZE = 6, ROOT_SCORE = ROOT_SCORE_TAG
 		};
 
 		/** The longest string a header record may hold, a broken file must not allocate. */
@@ -158,6 +158,9 @@ namespace GameFile {
 		file.writeRecord(FILE_VERSION, BOOK9_FILE_VERSION);
 		file.writeRecord(PAYLOAD_ID, header.payloadId);
 		file.writeRecord(NODE_SIZE, std::to_string(2 + header.payload));
+		if (scoresAfter(header.payloadId) && rootScore != NO_SCORE) {
+			file.writeRecord(ROOT_SCORE, std::to_string(rootScore));
+		}
 		file.writeInt(END_OF_HEADER);
 		file.writeInt(uint32_t(size()));
 
@@ -167,7 +170,7 @@ namespace GameFile {
 		const size_t nodeSize = 2 + size_t(header.payload);
 		const auto push = [&](NodeIndex index) { if (index != NO_NODE) stack.push_back(index); };
 		push(nodes_[ROOT].firstChild);
-		const bool scoreCounts = header.payloadId == SCORE_COUNT_PAYLOAD_ID;
+		const bool scoreCounts = isScoreCounts(header.payloadId);
 		const bool withWdl = header.payloadId == WDL_PAYLOAD_ID || scoreCounts;
 		const uint32_t countSize = scoreCounts ? SCORE_COUNT_PAYLOAD : WDL_PAYLOAD;
 		if (withWdl && (header.payload < countSize || wdl.size() != nodes_.size())) {
@@ -179,7 +182,7 @@ namespace GameFile {
 		if (withRates && (header.payload < RATE_PAYLOAD || rates.size() != nodes_.size())) {
 			throw std::runtime_error("a book with the rate payload needs 2 bytes and a rate for every node");
 		}
-		const bool combined = header.payloadId == COMBINED_PAYLOAD_ID;
+		const bool combined = isCombined(header.payloadId);
 		if (combined && (header.payload < COMBINED_PAYLOAD || rates.size() != nodes_.size())) {
 			throw std::runtime_error("a book with score and rate needs 4 bytes and a rate for every node");
 		}
@@ -219,7 +222,7 @@ namespace GameFile {
 				put32(at + countAt + 4, wdl[index].draws);
 				put32(at + countAt + 8, wdl[index].losses);
 			}
-			else if (header.payload >= VALUE_PAYLOAD && header.payloadId == SCORE_PAYLOAD_ID) {
+			else if (header.payload >= VALUE_PAYLOAD && isScoreOnly(header.payloadId)) {
 				data[at + 2] = uint8_t(uint16_t(node.score));
 				data[at + 3] = uint8_t(uint16_t(node.score) >> 8);
 			}
@@ -239,6 +242,7 @@ namespace GameFile {
 	void Book::read(const std::string& path) {
 		File file(path, "rb");
 		header = BookHeader{};
+		rootScore = NO_SCORE;
 		// A file without a version record is a book of the first generation.
 		std::string fileVersion = "1";
 		uint32_t nodeSize = 2;
@@ -257,6 +261,15 @@ namespace GameFile {
 			case BOOK_VERSION: header.version = value; break;
 			case FILE_VERSION: fileVersion = value; break;
 			case PAYLOAD_ID: header.payloadId = value; break;
+			case ROOT_SCORE: {
+				int score = 0;
+				const auto result = std::from_chars(value.data(), value.data() + value.size(), score);
+				if (result.ec != std::errc() || score < INT16_MIN || score > INT16_MAX) {
+					throw std::runtime_error(path + " is not a book: start position score \"" + value + "\"");
+				}
+				rootScore = int16_t(score);
+				break;
+			}
 			case NODE_SIZE: {
 				const auto result = std::from_chars(value.data(), value.data() + value.size(), nodeSize);
 				if (result.ec != std::errc() || nodeSize < 2 || nodeSize > 2 + MAX_PAYLOAD) {
@@ -278,12 +291,12 @@ namespace GameFile {
 		// Known from the header: growing the array instead would hold up to twice the book at once.
 		nodes_.reserve(size_t(count) + 1);
 		leaves_ = 0;
-		const bool scoreCounts = header.payloadId == SCORE_COUNT_PAYLOAD_ID && header.payload >= SCORE_COUNT_PAYLOAD;
+		const bool scoreCounts = isScoreCounts(header.payloadId) && header.payload >= SCORE_COUNT_PAYLOAD;
 		const bool withWdl = scoreCounts || (header.payloadId == WDL_PAYLOAD_ID && header.payload >= WDL_PAYLOAD);
 		const size_t countAt = scoreCounts ? 4 : 2;
 		wdl.clear();
 		if (withWdl) wdl.assign(size_t(count) + 1, WdlCount{});
-		const bool combined = header.payloadId == COMBINED_PAYLOAD_ID && header.payload >= COMBINED_PAYLOAD;
+		const bool combined = isCombined(header.payloadId) && header.payload >= COMBINED_PAYLOAD;
 		const bool withRates = combined || (header.payloadId == RATE_PAYLOAD_ID && header.payload >= RATE_PAYLOAD);
 		const size_t rateAt = combined ? 4 : 2;
 		rates.clear();

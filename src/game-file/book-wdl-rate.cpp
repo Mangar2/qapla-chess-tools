@@ -96,9 +96,15 @@ namespace GameFile {
 			for (Book::NodeIndex node = 1; node <= book.size(); ++node) {
 				if (book.node(node).score != NO_SCORE) ++nodes;
 			}
-			for (Book::NodeIndex node = 0; node <= book.size(); ++node) {
-				const Book::NodeIndex child = book.node(node).firstChild;
-				if (child != Book::NO_NODE && book.node(child).score != NO_SCORE) ++positions;
+			if (scoresAfter(book.header.payloadId)) {
+				// Version 2: a node is the position after its move, and the start position is apart.
+				positions = nodes + (book.rootScore != NO_SCORE ? 1 : 0);
+			}
+			else {
+				for (Book::NodeIndex node = 0; node <= book.size(); ++node) {
+					const Book::NodeIndex child = book.node(node).firstChild;
+					if (child != Book::NO_NODE && book.node(child).score != NO_SCORE) ++positions;
+				}
 			}
 			std::printf("scores: %llu nodes carry one, of %llu evaluated positions\n",
 				(unsigned long long)nodes, (unsigned long long)positions);
@@ -116,7 +122,8 @@ namespace GameFile {
 		}
 
 		const BookHeader before = book.header;
-		book.header.payloadId = withScores ? COMBINED_PAYLOAD_ID : RATE_PAYLOAD_ID;
+		const bool after = scoresAfter(before.payloadId);
+		book.header.payloadId = !withScores ? RATE_PAYLOAD_ID : (after ? COMBINED_V2_PAYLOAD_ID : COMBINED_PAYLOAD_ID);
 		book.header.payload = withScores ? COMBINED_PAYLOAD : RATE_PAYLOAD;
 		const std::string partPath = ratePath + ".part";
 		try {

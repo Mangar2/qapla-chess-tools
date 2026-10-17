@@ -55,6 +55,13 @@
  * two bytes per node, see WdlRate: the rate of the games won by the side that plays the move, and
  * how many games that rate rests on.
  *
+ * Version 2 of the scores, qapla-search-score-v2 and the payloads ending in -v2, gives every node the
+ * score of the position AFTER its move, seen from the side that played it - the position the node
+ * stands for, as its counts do. The start position has no node; its score, from white, is the header
+ * record 7 (a decimal number), which a reader that does not know it skips. Book::scoreBefore gives
+ * either version as a pgn comment and a game file need it: the score of the position a move is
+ * played from, from the side to move there.
+ *
  * A book evaluated by --bookeval and trained by --bookwdl keeps its scores: its book of counts has
  * the payload id SCORE_COUNT_PAYLOAD_ID, fourteen bytes per node - the search score as in
  * SCORE_PAYLOAD_ID, then the three counts as in WDL_PAYLOAD_ID - and is the one to train further;
@@ -94,6 +101,13 @@ namespace GameFile {
 	/** The payload id of a book made by gamefile --wdl2rate, see WdlRate. */
 	constexpr const char* RATE_PAYLOAD_ID = "qapla-wdl-rate-v1";
 	constexpr uint32_t RATE_PAYLOAD = 2;
+	/** The payload id of a book with the scores of version 2, see the overview above. */
+	constexpr const char* SCORE_V2_PAYLOAD_ID = "qapla-search-score-v2";
+	constexpr const char* SCORE_COUNT_V2_PAYLOAD_ID = "qapla-score-wdl-count-v2";
+	constexpr const char* COMBINED_V2_PAYLOAD_ID = "qapla-score-wdl-rate-v2";
+	/** The header record of the score of the start position in a book of version 2. */
+	constexpr uint32_t ROOT_SCORE_TAG = 7;
+
 	/** The payload id of a book with score and counts per node, see the overview above. */
 	constexpr const char* SCORE_COUNT_PAYLOAD_ID = "qapla-score-wdl-count-v1";
 	constexpr uint32_t SCORE_COUNT_PAYLOAD = 14;
@@ -101,11 +115,31 @@ namespace GameFile {
 	constexpr const char* COMBINED_PAYLOAD_ID = "qapla-score-wdl-rate-v1";
 	constexpr uint32_t COMBINED_PAYLOAD = 4;
 
-	/** True for a payload that carries the search score in its first two bytes. */
+	/** True for a payload with the scores of version 2: the position after the move, from its mover. */
+	inline bool scoresAfter(const std::string& payloadId) {
+		return payloadId == SCORE_V2_PAYLOAD_ID || payloadId == COMBINED_V2_PAYLOAD_ID
+			|| payloadId == SCORE_COUNT_V2_PAYLOAD_ID;
+	}
+
+	/** True for a payload that carries the search score in its first two bytes, of either version. */
 	inline bool hasScores(const std::string& payloadId) {
 		return payloadId == SCORE_PAYLOAD_ID || payloadId == COMBINED_PAYLOAD_ID
-			|| payloadId == SCORE_COUNT_PAYLOAD_ID;
+			|| payloadId == SCORE_COUNT_PAYLOAD_ID || scoresAfter(payloadId);
 	}
+	/** True for the payloads of the score alone. */
+	inline bool isScoreOnly(const std::string& payloadId) {
+		return payloadId == SCORE_PAYLOAD_ID || payloadId == SCORE_V2_PAYLOAD_ID;
+	}
+	/** True for the payloads of score and counts. */
+	inline bool isScoreCounts(const std::string& payloadId) {
+		return payloadId == SCORE_COUNT_PAYLOAD_ID || payloadId == SCORE_COUNT_V2_PAYLOAD_ID;
+	}
+	/** True for the payloads of score, rate and significance. */
+	inline bool isCombined(const std::string& payloadId) {
+		return payloadId == COMBINED_PAYLOAD_ID || payloadId == COMBINED_V2_PAYLOAD_ID;
+	}
+	/** A score seen from the other side; no score stays no score. */
+	constexpr int16_t negateScore(int16_t score) { return score == NO_SCORE ? NO_SCORE : int16_t(-score); }
 
 	/**
 	 * The counts of a node in two bytes.
@@ -190,6 +224,19 @@ namespace GameFile {
 
 		/** The child of a node with this nine bit move, NO_NODE if the book has none. */
 		NodeIndex findMove(NodeIndex parent, uint32_t move) const;
+
+		/**
+		 * The score of the position a node's move is played from, seen from the side to move there:
+		 * what a pgn comment gives the move and a game file the ply. Version 1 keeps it in the node,
+		 * version 2 in the node's parent (negated) or, for a move of the start position, the header.
+		 */
+		int16_t scoreBefore(NodeIndex node, NodeIndex parent) const {
+			if (!scoresAfter(header.payloadId)) return nodes_[node].score;
+			return parent == ROOT ? rootScore : negateScore(nodes_[parent].score);
+		}
+
+		/** The score of the start position in a book of version 2, from white; NO_SCORE if none. */
+		int16_t rootScore = NO_SCORE;
 
 		/** True if both books hold the same moves in the same tree: the two bytes of every node equal. */
 		bool sameTree(const Book& other) const;

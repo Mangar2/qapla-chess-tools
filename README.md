@@ -191,8 +191,23 @@ A book evaluated by `qapla-engine-tester --bookeval` is trained like any other, 
 | `out` | `qapla-score-wdl-count-v1` | 14: the score as in `qapla-search-score-v1`, then wins, draws, losses as in `qapla-wdl-count-v1` | trained further with more games, the scores kept |
 | `rate` | `qapla-score-wdl-rate-v1` | 4: the score, then rate and significance as in `qapla-wdl-rate-v1` | the book to use |
 
-Every node carries the score of the position its move is played from - the leaves included, their
-move is played from an evaluated position too. `--wdl2rate` of a book of scores and counts writes
+With the scores of version 1 every node carries the score of the position its move is played from
+- the leaves included, their move is played from an evaluated position too.
+
+### Scores of version 2: the position after the move
+
+`qapla-engine-tester --bookeval` writes version 2 by default, `qapla-search-score-v2`: every node
+carries the score of the position **after** its move, seen from the side that played it - the
+position the node stands for, the one its counts and its rate are about. The start position, which
+has no node, is the header record 7. Trained by `--bookwdl`, such a book gives
+`qapla-score-wdl-count-v2` and `qapla-score-wdl-rate-v2`, laid out as their `-v1` namesakes.
+
+A game file and a pgn comment give a ply the score of the position it is played from, from the side
+to move there. `--book2gam`, `--pgn2gam book=` and `--book2pgn values=true` take that from either
+version - from version 2 the negated score of the node before, and for the first move the start
+position of the header - and write the same files from a book of version 2 as from the book of
+version 1 of the same search, byte for byte. The leaves have a score in version 2 only; no ply is
+played from them in a line of the book, so they are in the book and not in the game files. `--wdl2rate` of a book of scores and counts writes
 the book of scores and rates as well, the output then also gives the nodes carrying a score and the
 positions evaluated. `--book2pgn values=true` writes all of it, `{+0.25 rate 187 sig 7}` or
 `{+0.25 wdl 12 3 4}`. An engine book reads the two with a payload of 14 or 4 bytes and an alignment

@@ -159,7 +159,8 @@ namespace GameFile {
 		// them beside its counts.
 		const bool trained = !book.wdl.empty();
 		if (!trained) book.wdl.assign(book.size() + 1, WdlCount{});
-		book.header.payloadId = withScores ? SCORE_COUNT_PAYLOAD_ID : WDL_PAYLOAD_ID;
+		const bool after = scoresAfter(book.header.payloadId);
+		book.header.payloadId = !withScores ? WDL_PAYLOAD_ID : (after ? SCORE_COUNT_V2_PAYLOAD_ID : SCORE_COUNT_PAYLOAD_ID);
 		book.header.payload = withScores ? SCORE_COUNT_PAYLOAD : WDL_PAYLOAD;
 
 		Counters counters;
