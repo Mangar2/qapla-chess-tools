@@ -88,15 +88,26 @@ namespace GameFile {
 			// A piece code halved is 2 for a knight, 3 bishop, 4 rook, 5 queen.
 			if (move.promotion != NO_PIECE) frame.move += "nbrq"[(move.promotion >> 1) - 2];
 			if (withValues && entry.value != NO_GAME_VALUE) appendValueComment(frame.move, entry.value);
-			else if (withValues && entry.score != NO_SCORE) appendScoreComment(frame.move, entry.score);
-			else if (withValues && !book.rates.empty()) {
-				frame.move += " {rate " + std::to_string(book.rates[node].rate) + " sig "
-					+ std::to_string(book.rates[node].significance) + "}";
-			}
-			else if (withValues && !book.wdl.empty()) {
-				const WdlCount& count = book.wdl[node];
-				frame.move += " {wdl " + std::to_string(count.wins) + " " + std::to_string(count.draws) + " "
-					+ std::to_string(count.losses) + "}";
+			else if (withValues) {
+				// Everything the node carries in one comment: "{+0.25 rate 187 sig 7}",
+				// "{+0.25 wdl 12 3 4}", or one of the parts alone.
+				std::string comment;
+				if (entry.score != NO_SCORE) {
+					appendScoreComment(comment, entry.score);
+					comment = comment.substr(2, comment.size() - 3);
+				}
+				std::string results;
+				if (!book.rates.empty()) {
+					results = "rate " + std::to_string(book.rates[node].rate) + " sig "
+						+ std::to_string(book.rates[node].significance);
+				}
+				else if (!book.wdl.empty()) {
+					const WdlCount& count = book.wdl[node];
+					results = "wdl " + std::to_string(count.wins) + " " + std::to_string(count.draws) + " "
+						+ std::to_string(count.losses);
+				}
+				if (!results.empty()) comment += (comment.empty() ? "" : " ") + results;
+				if (!comment.empty()) frame.move += " {" + comment + "}";
 			}
 			frame.board.apply(move);
 			line.push_back(std::move(frame));

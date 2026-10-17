@@ -179,6 +179,25 @@ The output gives, per significance, the nodes and those always lost (rate 0) and
 255) - from 16 games on, with their sum, and below that apart. `--book2pgn values=true` writes the
 two bytes as `{rate <rate> sig <significance>}`.
 
+### Score, rate and significance in one book
+
+A book evaluated by `qapla-engine-tester --bookeval` is trained like any other, and keeps its scores:
+
+    gamefile --bookwdl book=start-positions-eval.bok out=start-positions-eval-wdl.bok \
+        rate=start-positions-eval-wdlrate.bok in=part-01.pgn,part-02.pgn
+
+| Book | Payload id | Bytes per node | Use |
+|---|---|---|---|
+| `out` | `qapla-score-wdl-count-v1` | 14: the score as in `qapla-search-score-v1`, then wins, draws, losses as in `qapla-wdl-count-v1` | trained further with more games, the scores kept |
+| `rate` | `qapla-score-wdl-rate-v1` | 4: the score, then rate and significance as in `qapla-wdl-rate-v1` | the book to use |
+
+Every node carries the score of the position its move is played from - the leaves included, their
+move is played from an evaluated position too. `--wdl2rate` of a book of scores and counts writes
+the book of scores and rates as well, the output then also gives the nodes carrying a score and the
+positions evaluated. `--book2pgn values=true` writes all of it, `{+0.25 rate 187 sig 7}` or
+`{+0.25 wdl 12 3 4}`. An engine book reads the two with a payload of 14 or 4 bytes and an alignment
+of at most two.
+
 ### The readers of qapla-engine-tester
 
 `src/engine-tester` holds the pgn and epd readers of qapla-engine-tester (`src/opening` there) and

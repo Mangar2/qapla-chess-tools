@@ -29,8 +29,10 @@ namespace GameFile {
 	 * through, as a win, a draw or a loss of the side that plays the node's move. A game is followed
 	 * from the start position as long as its moves are in the book; at the first move that is not,
 	 * it stops counting. The book keeps its tree and its moves, only the payload is the new one,
-	 * qapla-wdl-count-v1 (see book-file.h). A book that has it already is trained further, its counts
-	 * added to; any other book starts at zero.
+	 * qapla-wdl-count-v1 (see book-file.h). A book that has counts already is trained further, its
+	 * counts added to; any other book starts at zero. A book with scores, evaluated by --bookeval,
+	 * keeps them: it is written with qapla-score-wdl-count-v1, scores and counts, and trained further
+	 * as such.
 	 *
 	 * The games are pgn in long notation, as for pgn2gam, or game files: the result is the Result tag
 	 * of a pgn or, without one, the token ending its moves; in a game file the result of its first
@@ -39,7 +41,10 @@ namespace GameFile {
 	struct BookWdl {
 		/** The pgn and game files, in this order; a game file is told by its magic. */
 		std::vector<std::string> inputs;
-		/** If not empty, the trained book is also written here with the rate payload, see --wdl2rate. */
+		/**
+		 * If not empty, the trained book is also written here with the rate payload, see --wdl2rate;
+		 * for a book with scores (--bookeval) with scores and rates, qapla-score-wdl-rate-v1.
+		 */
 		std::string ratePath;
 
 		/**

@@ -53,64 +53,94 @@ namespace GameFile {
 			std::printf("  %-31s %12llu %12llu %12llu\n", label, (unsigned long long)level.nodes,
 				(unsigned long long)level.alwaysLost, (unsigned long long)level.alwaysWon);
 		}
+
+		void printStatistics(const Book& book) {
+			std::array<Level, SIGNIFICANCES> levels{};
+			for (size_t node = 1; node < book.rates.size(); ++node) {
+				const WdlRate rate = book.rates[node];
+				Level& level = levels[rate.significance < SIGNIFICANCES ? rate.significance : SIGNIFICANCES - 1];
+				++level.nodes;
+				if (rate.significance != 0 && rate.rate == 0) ++level.alwaysLost;
+				if (rate.rate == 255) ++level.alwaysWon;
+			}
+			std::printf("  sig  games                          nodes  always lost  always won\n");
+			Level significant, little;
+			for (size_t significance = SIGNIFICANT; significance < SIGNIFICANCES; ++significance) {
+				const Level& level = levels[significance];
+				if (level.nodes == 0) continue;
+				printLevel(significance, level);
+				significant.nodes += level.nodes;
+				significant.alwaysLost += level.alwaysLost;
+				significant.alwaysWon += level.alwaysWon;
+			}
+			printSum("sum from 16 games on", significant);
+			std::printf("  below 16 games:\n");
+			for (size_t significance = 1; significance < SIGNIFICANT; ++significance) {
+				const Level& level = levels[significance];
+				printLevel(significance, level);
+				little.nodes += level.nodes;
+				little.alwaysLost += level.alwaysLost;
+				little.alwaysWon += level.alwaysWon;
+			}
+			printSum("sum of 1 to 15 games", little);
+			std::printf("  nodes no game went through: %llu\n", (unsigned long long)levels[0].nodes);
+		}
+
+		/**
+		 * The nodes that carry a score, and the positions they were searched in: a position is the
+		 * start position or one after a node with children, and all the moves played from it carry
+		 * its score, so it counts once - through its first move.
+		 */
+		void printScores(const Book& book) {
+			uint64_t nodes = 0, positions = 0;
+			for (Book::NodeIndex node = 1; node <= book.size(); ++node) {
+				if (book.node(node).score != NO_SCORE) ++nodes;
+			}
+			for (Book::NodeIndex node = 0; node <= book.size(); ++node) {
+				const Book::NodeIndex child = book.node(node).firstChild;
+				if (child != Book::NO_NODE && book.node(child).score != NO_SCORE) ++positions;
+			}
+			std::printf("scores: %llu nodes carry one, of %llu evaluated positions\n",
+				(unsigned long long)nodes, (unsigned long long)positions);
+		}
 	}
 
-	void writeRateBook(Book& book, const std::string& ratePath) {
-		if (book.header.payloadId != WDL_PAYLOAD_ID || book.wdl.empty()) {
-			throw std::runtime_error("the book holds no counts; give a book trained by gamefile --bookwdl");
+	void writeRateBook(Book& book, const std::string& ratePath, bool withScores) {
+		if (!book.wdl.empty()) {
+			book.rates.assign(book.wdl.size(), WdlRate{});
+			for (size_t node = 1; node < book.wdl.size(); ++node) book.rates[node] = rateOf(book.wdl[node]);
 		}
-		std::array<Level, SIGNIFICANCES> levels{};
-		book.rates.assign(book.wdl.size(), WdlRate{});
-		for (size_t node = 1; node < book.wdl.size(); ++node) {
-			const WdlRate rate = rateOf(book.wdl[node]);
-			book.rates[node] = rate;
-			Level& level = levels[rate.significance];
-			++level.nodes;
-			if (rate.significance != 0 && rate.rate == 0) ++level.alwaysLost;
-			if (rate.rate == 255) ++level.alwaysWon;
+		else if (book.rates.empty()) {
+			throw std::runtime_error("the book holds neither counts nor rates; give a book trained by "
+				"gamefile --bookwdl");
 		}
 
-		const BookHeader counts = book.header;
-		book.header.payloadId = RATE_PAYLOAD_ID;
-		book.header.payload = RATE_PAYLOAD;
+		const BookHeader before = book.header;
+		book.header.payloadId = withScores ? COMBINED_PAYLOAD_ID : RATE_PAYLOAD_ID;
+		book.header.payload = withScores ? COMBINED_PAYLOAD : RATE_PAYLOAD;
 		const std::string partPath = ratePath + ".part";
 		try {
 			book.write(partPath);
 		}
 		catch (...) {
-			book.header = counts;
+			book.header = before;
 			throw;
 		}
-		book.header = counts;
+		book.header = before;
 		std::filesystem::rename(partPath, ratePath);
 
-		std::printf("rates of %zu nodes written to %s\n", book.wdl.size() - 1, ratePath.c_str());
-		std::printf("  sig  games                          nodes  always lost  always won\n");
-		Level significant, little;
-		for (size_t significance = SIGNIFICANT; significance < SIGNIFICANCES; ++significance) {
-			const Level& level = levels[significance];
-			if (level.nodes == 0) continue;
-			printLevel(significance, level);
-			significant.nodes += level.nodes;
-			significant.alwaysLost += level.alwaysLost;
-			significant.alwaysWon += level.alwaysWon;
-		}
-		printSum("sum from 16 games on", significant);
-		std::printf("  below 16 games:\n");
-		for (size_t significance = 1; significance < SIGNIFICANT; ++significance) {
-			const Level& level = levels[significance];
-			printLevel(significance, level);
-			little.nodes += level.nodes;
-			little.alwaysLost += level.alwaysLost;
-			little.alwaysWon += level.alwaysWon;
-		}
-		printSum("sum of 1 to 15 games", little);
-		std::printf("  nodes no game went through: %llu\n", (unsigned long long)levels[0].nodes);
+		std::printf("%s of %zu nodes written to %s\n", withScores ? "scores and rates" : "rates",
+			book.rates.size() - 1, ratePath.c_str());
+		if (withScores) printScores(book);
+		printStatistics(book);
 	}
 
 	void WdlToRate::convert(const std::string& countPath, const std::string& ratePath) const {
 		Book book;
 		book.read(countPath);
-		writeRateBook(book, ratePath);
+		if (book.wdl.empty()) {
+			throw std::runtime_error(countPath + " holds no counts; give a book trained by gamefile --bookwdl");
+		}
+		writeRateBook(book, ratePath, hasScores(book.header.payloadId));
 	}
 }

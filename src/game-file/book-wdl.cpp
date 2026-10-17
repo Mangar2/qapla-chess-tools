@@ -153,12 +153,14 @@ namespace GameFile {
 	uint64_t BookWdl::convert(const std::string& bookPath, const std::string& outPath) const {
 		Book book;
 		book.read(bookPath);
-		const bool trained = book.header.payloadId == WDL_PAYLOAD_ID && !book.wdl.empty();
-		if (!trained) {
-			book.wdl.assign(book.size() + 1, WdlCount{});
-			book.header.payloadId = WDL_PAYLOAD_ID;
-			book.header.payload = WDL_PAYLOAD;
-		}
+		// A book with scores keeps them in its nodes: the rate book is then written with them.
+		const bool withScores = hasScores(book.header.payloadId);
+		// A book with counts is trained further; any other starts at zero. A book with scores keeps
+		// them beside its counts.
+		const bool trained = !book.wdl.empty();
+		if (!trained) book.wdl.assign(book.size() + 1, WdlCount{});
+		book.header.payloadId = withScores ? SCORE_COUNT_PAYLOAD_ID : WDL_PAYLOAD_ID;
+		book.header.payload = withScores ? SCORE_COUNT_PAYLOAD : WDL_PAYLOAD;
 
 		Counters counters;
 		for (const std::string& input : inputs) {
@@ -182,7 +184,7 @@ namespace GameFile {
 			std::printf("WARNING: %llu counts stayed at the largest value, 2^32 - 1, instead of overflowing\n",
 				(unsigned long long)counters.saturated);
 		}
-		if (!ratePath.empty()) writeRateBook(book, ratePath);
+		if (!ratePath.empty()) writeRateBook(book, ratePath, withScores);
 		return counters.counted;
 	}
 }

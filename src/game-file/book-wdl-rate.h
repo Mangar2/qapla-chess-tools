@@ -29,7 +29,8 @@ namespace GameFile {
 	 * counts - win rate and significance, see WdlRate in book-file.h - and prints how the nodes are
 	 * spread over the significances: per significance the nodes, those always lost (rate 0) and those
 	 * always won (rate 255). The tree and the moves stay as they are. The book of counts stays the
-	 * one to train further; the rates cannot be.
+	 * one to train further; the rates cannot be. A book of counts with scores (--bookwdl of an
+	 * evaluated book) gives a book of scores and rates, qapla-score-wdl-rate-v1.
 	 */
 	struct WdlToRate {
 		/**
@@ -39,8 +40,9 @@ namespace GameFile {
 	};
 
 	/**
-	 * Writes a book that holds counts as a book of rates and prints the statistics; the book's own
-	 * payload is left as it was.
+	 * Writes a book with counts or rates as a book of rates - with the scores of the book as well, if
+	 * withScores - and prints the statistics; the book's own payload is left as it was. Rates are
+	 * made from the counts when the book has them.
 	 */
-	void writeRateBook(Book& book, const std::string& ratePath);
+	void writeRateBook(Book& book, const std::string& ratePath, bool withScores);
 }

@@ -54,6 +54,12 @@
  * Made from such a book by gamefile --wdl2rate, a book with the payload id RATE_PAYLOAD_ID carries
  * two bytes per node, see WdlRate: the rate of the games won by the side that plays the move, and
  * how many games that rate rests on.
+ *
+ * A book evaluated by --bookeval and trained by --bookwdl keeps its scores: its book of counts has
+ * the payload id SCORE_COUNT_PAYLOAD_ID, fourteen bytes per node - the search score as in
+ * SCORE_PAYLOAD_ID, then the three counts as in WDL_PAYLOAD_ID - and is the one to train further;
+ * its book of rates has the payload id COMBINED_PAYLOAD_ID, four bytes per node - the search score,
+ * then rate and significance as in RATE_PAYLOAD_ID.
  */
 
 #include <cstdint>
@@ -88,6 +94,18 @@ namespace GameFile {
 	/** The payload id of a book made by gamefile --wdl2rate, see WdlRate. */
 	constexpr const char* RATE_PAYLOAD_ID = "qapla-wdl-rate-v1";
 	constexpr uint32_t RATE_PAYLOAD = 2;
+	/** The payload id of a book with score and counts per node, see the overview above. */
+	constexpr const char* SCORE_COUNT_PAYLOAD_ID = "qapla-score-wdl-count-v1";
+	constexpr uint32_t SCORE_COUNT_PAYLOAD = 14;
+	/** The payload id of a book with score, rate and significance per node. */
+	constexpr const char* COMBINED_PAYLOAD_ID = "qapla-score-wdl-rate-v1";
+	constexpr uint32_t COMBINED_PAYLOAD = 4;
+
+	/** True for a payload that carries the search score in its first two bytes. */
+	inline bool hasScores(const std::string& payloadId) {
+		return payloadId == SCORE_PAYLOAD_ID || payloadId == COMBINED_PAYLOAD_ID
+			|| payloadId == SCORE_COUNT_PAYLOAD_ID;
+	}
 
 	/**
 	 * The counts of a node in two bytes.
@@ -172,6 +190,9 @@ namespace GameFile {
 
 		/** The child of a node with this nine bit move, NO_NODE if the book has none. */
 		NodeIndex findMove(NodeIndex parent, uint32_t move) const;
+
+		/** True if both books hold the same moves in the same tree: the two bytes of every node equal. */
+		bool sameTree(const Book& other) const;
 
 		const Node& node(NodeIndex index) const { return nodes_[index]; }
 		Node& node(NodeIndex index) { return nodes_[index]; }

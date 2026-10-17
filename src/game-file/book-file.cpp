@@ -116,6 +116,20 @@ namespace GameFile {
 		return NO_NODE;
 	}
 
+	bool Book::sameTree(const Book& other) const {
+		if (nodes_.size() != other.nodes_.size()) return false;
+		for (size_t index = 1; index < nodes_.size(); ++index) {
+			const Node& mine = nodes_[index];
+			const Node& theirs = other.nodes_[index];
+			if (mine.move != theirs.move || mine.priority != theirs.priority
+				|| (mine.firstChild == NO_NODE) != (theirs.firstChild == NO_NODE)
+				|| (mine.nextSibling == NO_NODE) != (theirs.nextSibling == NO_NODE)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	Book::NodeIndex Book::appendChild(NodeIndex parent, const Node& node) {
 		const NodeIndex child = NodeIndex(nodes_.size());
 		nodes_.push_back(Node{ .move = node.move, .value = node.value, .score = node.score,
@@ -153,13 +167,21 @@ namespace GameFile {
 		const size_t nodeSize = 2 + size_t(header.payload);
 		const auto push = [&](NodeIndex index) { if (index != NO_NODE) stack.push_back(index); };
 		push(nodes_[ROOT].firstChild);
-		const bool withWdl = header.payloadId == WDL_PAYLOAD_ID;
-		if (withWdl && (header.payload < WDL_PAYLOAD || wdl.size() != nodes_.size())) {
-			throw std::runtime_error("a book with the WDL payload needs 12 bytes and a count for every node");
+		const bool scoreCounts = header.payloadId == SCORE_COUNT_PAYLOAD_ID;
+		const bool withWdl = header.payloadId == WDL_PAYLOAD_ID || scoreCounts;
+		const uint32_t countSize = scoreCounts ? SCORE_COUNT_PAYLOAD : WDL_PAYLOAD;
+		if (withWdl && (header.payload < countSize || wdl.size() != nodes_.size())) {
+			throw std::runtime_error("a book with counts needs " + std::to_string(countSize)
+				+ " bytes of payload and a count for every node");
 		}
+		const size_t countAt = scoreCounts ? 4 : 2;
 		const bool withRates = header.payloadId == RATE_PAYLOAD_ID;
 		if (withRates && (header.payload < RATE_PAYLOAD || rates.size() != nodes_.size())) {
 			throw std::runtime_error("a book with the rate payload needs 2 bytes and a rate for every node");
+		}
+		const bool combined = header.payloadId == COMBINED_PAYLOAD_ID;
+		if (combined && (header.payload < COMBINED_PAYLOAD || rates.size() != nodes_.size())) {
+			throw std::runtime_error("a book with score and rate needs 4 bytes and a rate for every node");
 		}
 		const auto put32 = [&](size_t at, uint32_t value) {
 			for (int byte = 0; byte < 4; ++byte) data[at + byte] = uint8_t(value >> (8 * byte));
@@ -178,14 +200,24 @@ namespace GameFile {
 			data.resize(at + nodeSize, 0);
 			data[at] = uint8_t(bits);
 			data[at + 1] = uint8_t(bits >> 8);
-			if (withRates) {
+			if (combined) {
+				data[at + 2] = uint8_t(uint16_t(node.score));
+				data[at + 3] = uint8_t(uint16_t(node.score) >> 8);
+				data[at + 4] = rates[index].rate;
+				data[at + 5] = rates[index].significance;
+			}
+			else if (withRates) {
 				data[at + 2] = rates[index].rate;
 				data[at + 3] = rates[index].significance;
 			}
 			else if (withWdl) {
-				put32(at + 2, wdl[index].wins);
-				put32(at + 6, wdl[index].draws);
-				put32(at + 10, wdl[index].losses);
+				if (scoreCounts) {
+					data[at + 2] = uint8_t(uint16_t(node.score));
+					data[at + 3] = uint8_t(uint16_t(node.score) >> 8);
+				}
+				put32(at + countAt, wdl[index].wins);
+				put32(at + countAt + 4, wdl[index].draws);
+				put32(at + countAt + 8, wdl[index].losses);
 			}
 			else if (header.payload >= VALUE_PAYLOAD && header.payloadId == SCORE_PAYLOAD_ID) {
 				data[at + 2] = uint8_t(uint16_t(node.score));
@@ -246,10 +278,14 @@ namespace GameFile {
 		// Known from the header: growing the array instead would hold up to twice the book at once.
 		nodes_.reserve(size_t(count) + 1);
 		leaves_ = 0;
-		const bool withWdl = header.payloadId == WDL_PAYLOAD_ID && header.payload >= WDL_PAYLOAD;
+		const bool scoreCounts = header.payloadId == SCORE_COUNT_PAYLOAD_ID && header.payload >= SCORE_COUNT_PAYLOAD;
+		const bool withWdl = scoreCounts || (header.payloadId == WDL_PAYLOAD_ID && header.payload >= WDL_PAYLOAD);
+		const size_t countAt = scoreCounts ? 4 : 2;
 		wdl.clear();
 		if (withWdl) wdl.assign(size_t(count) + 1, WdlCount{});
-		const bool withRates = header.payloadId == RATE_PAYLOAD_ID && header.payload >= RATE_PAYLOAD;
+		const bool combined = header.payloadId == COMBINED_PAYLOAD_ID && header.payload >= COMBINED_PAYLOAD;
+		const bool withRates = combined || (header.payloadId == RATE_PAYLOAD_ID && header.payload >= RATE_PAYLOAD);
+		const size_t rateAt = combined ? 4 : 2;
 		rates.clear();
 		if (withRates) rates.assign(size_t(count) + 1, WdlRate{});
 		// One frame per level of the tree that is still being filled: the node the level hangs
@@ -274,12 +310,15 @@ namespace GameFile {
 			if (header.payload >= VALUE_PAYLOAD && header.payloadId == VALUE_PAYLOAD_ID) {
 				node.value = uint16_t((uint32_t(bytes[2]) | (uint32_t(bytes[3]) << 8)) & MAX_VALUE_CODE);
 			}
-			else if (header.payload >= VALUE_PAYLOAD && header.payloadId == SCORE_PAYLOAD_ID) {
+			else if (header.payload >= VALUE_PAYLOAD && hasScores(header.payloadId)) {
 				node.score = int16_t(uint16_t(bytes[2] | (bytes[3] << 8)));
 			}
 			const NodeIndex added = appendChild(frames.back().parent, node);
-			if (withWdl) wdl[added] = WdlCount{ .wins = get32(2), .draws = get32(6), .losses = get32(10) };
-			if (withRates) rates[added] = WdlRate{ .rate = bytes[2], .significance = bytes[3] };
+			if (withWdl) {
+				wdl[added] = WdlCount{ .wins = get32(countAt), .draws = get32(countAt + 4),
+					.losses = get32(countAt + 8) };
+			}
+			if (withRates) rates[added] = WdlRate{ .rate = bytes[rateAt], .significance = bytes[rateAt + 1] };
 			if (bits & HAS_CHILD) {
 				frames.push_back(Frame{ .parent = added, .parentHasSibling = (bits & HAS_RIGHT_SIBLING) != 0 });
 			}
