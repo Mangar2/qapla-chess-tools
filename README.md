@@ -66,6 +66,7 @@ out from the header which one a file is. There is no direct conversion; it goes 
     gamefile --book2gam in=<evaluated book> out=<game file> [compact=true|false] [wdl=k:<k>|w:<w>]
     gamefile --bookwdl book=<book> out=<book> in=<pgn or game file>[,<pgn or game file>...] [rate=<book>]
     gamefile --wdl2rate in=<book of counts> out=<book of rates>
+    gamefile --booksplit in=<book> out=<book> [parts=N]
 
 `--pgn2book` takes every game of the pgn as a line from the start position; lines that begin alike
 share their nodes. It reads with the pgn reader of qapla-engine-tester, so the moves may be in short
@@ -230,6 +231,30 @@ node it is the position after, won and lost exchanged - they are counted for the
 the node's move - and for the start position the sums of the moves from it. The output gives the
 positions adjusted and the mean `|target - p|`, per number of games. Without the option the file is
 the one it always was.
+
+### Splitting a book: --booksplit
+
+More training data needs more openings than one set has. `--booksplit` makes parts of one large
+book, each the size of a set, to be played one after the other:
+
+    gamefile --booksplit in=start-positions.bok out=start-positions.bok parts=10
+
+writes `start-positions-01.bok` to `start-positions-10.bok`. Leaf i of the book, counted in the order
+of the book from 0, goes with its whole line into part (i mod parts) + 1. Every part is a book of
+its own, with its lines and every node on their way, and carries the payload of the book node for
+node - scores, counts, rates, and the score of the start position. The parts share no line and
+together hold every line once; the same book gives the same parts.
+
+Taking every tenth leaf in the order of the tree is a stratified sample: every subtree of ten
+leaves or more gives each part close to a tenth of its lines. Split into ten, the 10 M start
+positions give every part 1,000,002 lines with exactly the shares of first moves of the whole book,
+the first two plies within 0.01% of them, and no part favoured in the rank of a leaf among its
+siblings. A book is split once it is complete: a book that has grown gives other parts.
+
+The start of the tree is in every part: the ten parts of the 10 M book hold 31.8 M nodes for the
+17.5 M of the book. So the book is evaluated once, whole, before it is split, and the parts take the
+scores along; and when parts are trained together, `--bookwdl` and `--book2gam` run on the whole
+book with the games of all of them, which keeps every position once.
 
 ### The readers of qapla-engine-tester
 

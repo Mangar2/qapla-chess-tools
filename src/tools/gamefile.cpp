@@ -31,6 +31,7 @@
  *   gamefile --bookwdl book=<book> out=<book> in=<pgn or game file>[,<pgn or game file>...]
  *            [rate=<book>]
  *   gamefile --wdl2rate in=<book of counts> out=<book of rates>
+ *   gamefile --booksplit in=<book> out=<book> [parts=N]
  *
  * Several may be given in one call; they run in this order. See GameFile::PgnToGameFile and
  * GameFile::GameFileToPgn, GameFile::PgnToBook and GameFile::BookToPgn for what is read, written
@@ -50,6 +51,7 @@
 #include "cli-settings-manager.h"
 #include "game-file/book-to-game-file.h"
 #include "game-file/book-to-pgn.h"
+#include "game-file/book-split.h"
 #include "game-file/book-wdl.h"
 #include "game-file/book-wdl-rate.h"
 #include "game-file/game-file-to-binpack.h"
@@ -146,6 +148,16 @@ namespace {
 					std::nullopt, ValueType::String } },
 				{ "rate", { "If given, the trained book is also written here with the two byte rate payload, "
 					"as --wdl2rate writes it", false, std::string(""), ValueType::String } },
+			});
+		Manager::registerGroup("booksplit",
+			"Splits a book into parts of its lines: leaf i, in the order of the book, goes with its line "
+			"into part (i mod parts) + 1. The parts carry the payload of the book and together hold every "
+			"line once.",
+			true, {
+				{ "in", { "The book to split", true, std::nullopt, ValueType::PathExists } },
+				{ "out", { "The name of the parts: start.bok gives start-01.bok, start-02.bok, ...", true,
+					std::nullopt, ValueType::PathParentExists } },
+				{ "parts", { "The number of parts, 2 to 9999", false, 10, ValueType::Int } },
 			});
 		Manager::registerGroup("wdl2rate",
 			"Writes a book trained by --bookwdl with two bytes per node instead of the counts: the share "
@@ -261,6 +273,13 @@ namespace {
 			if (converter.inputs.empty()) throw AppError::makeInvalidParameters("bookwdl: no games given with in=");
 			converter.ratePath = group->get<std::string>("rate");
 			converter.convert(group->get<std::string>("book"), group->get<std::string>("out"));
+		}
+		if (const auto group = Manager::getGroupInstance("booksplit")) {
+			any = true;
+			const int parts = group->get<int>("parts");
+			if (parts < 2 || parts > 9999) throw AppError::makeInvalidParameters("parts takes 2 to 9999");
+			GameFile::BookSplit{ .parts = uint32_t(parts) }.convert(group->get<std::string>("in"),
+				group->get<std::string>("out"));
 		}
 		if (const auto group = Manager::getGroupInstance("wdl2rate")) {
 			any = true;
