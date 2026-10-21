@@ -67,6 +67,7 @@ out from the header which one a file is. There is no direct conversion; it goes 
     gamefile --bookwdl book=<book> out=<book> in=<pgn or game file>[,<pgn or game file>...] [rate=<book>]
     gamefile --wdl2rate in=<book of counts> out=<book of rates>
     gamefile --booksplit in=<book> out=<book> [parts=N]
+    gamefile --bookprune in=<book> out=<book> games=<pgn or game file>[,<pgn or game file>...]
 
 `--pgn2book` takes every game of the pgn as a line from the start position; lines that begin alike
 share their nodes. It reads with the pgn reader of qapla-engine-tester, so the moves may be in short
@@ -255,6 +256,20 @@ The start of the tree is in every part: the ten parts of the 10 M book hold 31.8
 17.5 M of the book. So the book is evaluated once, whole, before it is split, and the parts take the
 scores along; and when parts are trained together, `--bookwdl` and `--book2gam` run on the whole
 book with the games of all of them, which keeps every position once.
+
+### Removing the leaves played already: --bookprune
+
+A book grown out of an older one has new leaves on the games the old leaves were played to: their
+start positions have been played. `--bookprune` removes them:
+
+    gamefile --bookprune in=start-positions-01.bok out=start-positions-01-pruned.bok games=old-01.pgn,old-02.pgn
+
+Every game is followed from the start position through the book as long as its moves are in it; if
+it reaches a leaf that way, the leaf goes, and with it its line back to the last node another line
+runs through. The book written keeps the other lines in the order of the book, every node on their
+way and the payload node for node, the score of the start position included. Of the 10 M games of
+the old set, 9,809,232 run through a leaf of the 100 M book grown out of their book - 9.8 % of its
+leaves.
 
 ### The readers of qapla-engine-tester
 

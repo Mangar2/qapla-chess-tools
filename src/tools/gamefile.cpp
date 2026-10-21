@@ -32,6 +32,7 @@
  *            [rate=<book>]
  *   gamefile --wdl2rate in=<book of counts> out=<book of rates>
  *   gamefile --booksplit in=<book> out=<book> [parts=N]
+ *   gamefile --bookprune in=<book> out=<book> games=<pgn or game file>[,<pgn or game file>...]
  *
  * Several may be given in one call; they run in this order. See GameFile::PgnToGameFile and
  * GameFile::GameFileToPgn, GameFile::PgnToBook and GameFile::BookToPgn for what is read, written
@@ -51,6 +52,7 @@
 #include "cli-settings-manager.h"
 #include "game-file/book-to-game-file.h"
 #include "game-file/book-to-pgn.h"
+#include "game-file/book-prune.h"
 #include "game-file/book-split.h"
 #include "game-file/book-wdl.h"
 #include "game-file/book-wdl-rate.h"
@@ -158,6 +160,17 @@ namespace {
 				{ "out", { "The name of the parts: start.bok gives start-01.bok, start-02.bok, ...", true,
 					std::nullopt, ValueType::PathParentExists } },
 				{ "parts", { "The number of parts, 2 to 9999", false, 10, ValueType::Int } },
+			});
+		Manager::registerGroup("bookprune",
+			"Removes from a book every leaf that games have played already - the leaf a game reaches when it "
+			"is followed through the book - with its line back to the last node another line runs through. "
+			"The book keeps its other lines in their order and its payload.",
+			true, {
+				{ "in", { "The book to prune", true, std::nullopt, ValueType::PathExists } },
+				{ "out", { "The pruned book to write; may be the book itself", true, std::nullopt,
+					ValueType::PathParentExists } },
+				{ "games", { "The games played: pgn files in long notation or game files, separated by commas",
+					true, std::nullopt, ValueType::String } },
 			});
 		Manager::registerGroup("wdl2rate",
 			"Writes a book trained by --bookwdl with two bytes per node instead of the counts: the share "
@@ -280,6 +293,24 @@ namespace {
 			if (parts < 2 || parts > 9999) throw AppError::makeInvalidParameters("parts takes 2 to 9999");
 			GameFile::BookSplit{ .parts = uint32_t(parts) }.convert(group->get<std::string>("in"),
 				group->get<std::string>("out"));
+		}
+		if (const auto group = Manager::getGroupInstance("bookprune")) {
+			any = true;
+			GameFile::BookPrune converter;
+			std::string list = group->get<std::string>("games");
+			for (size_t start = 0; start <= list.size();) {
+				const size_t end = std::min(list.find(',', start), list.size());
+				const std::string input = trim(list.substr(start, end - start));
+				if (!input.empty()) {
+					if (!std::filesystem::exists(input)) {
+						throw AppError::makeInvalidParameters("bookprune: " + input + " does not exist");
+					}
+					converter.inputs.push_back(input);
+				}
+				start = end + 1;
+			}
+			if (converter.inputs.empty()) throw AppError::makeInvalidParameters("bookprune: no games given with games=");
+			converter.convert(group->get<std::string>("in"), group->get<std::string>("out"));
 		}
 		if (const auto group = Manager::getGroupInstance("wdl2rate")) {
 			any = true;
